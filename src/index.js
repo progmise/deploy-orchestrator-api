@@ -1,19 +1,10 @@
 import express from 'express';
 import { createRequire } from 'node:module';
-import { dbReady, listComponents, getComponent, createComponent, loadAppEnv } from './db.js';
+import { dbReady, listComponents, getComponent, createComponent } from './db.js';
 import { listTemplates, provision, provisioningEnabled } from './provision.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
-
-// Hydrate the API's own config from Supabase (app_config + Vault) before any
-// process.env reads below. Soft-fail: without SUPABASE_* the process env is
-// the only source, exactly as before.
-try {
-  await loadAppEnv();
-} catch (e) {
-  console.warn(`app config load failed: ${e.message}`);
-}
 
 const app = express();
 app.use(express.json());
