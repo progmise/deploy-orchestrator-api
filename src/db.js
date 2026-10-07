@@ -65,34 +65,6 @@ export async function platformConfig() {
   return cfg;
 }
 
-// --- API env bootstrap ------------------------------------------------------
-// The API's own configuration lives in the DB too: plaintext keys in
-// app_config, sensitive ones in the Vault (platform_secrets view). On boot,
-// loadAppEnv hydrates process.env so the rest of the code reads env vars as
-// usual. The DB is the master copy — a stored value overrides the env var;
-// the env var only applies when the key is absent from the store (local dev).
-// PORT stays env-only: the runtime injects it, it's platform config.
-
-const APP_CONFIG_KEYS = [
-  'GITHUB_CLIENT_ID',
-  'ALLOWED_USERS',
-  'FRONTEND_URL',
-  'GITHUB_OWNER',
-  'MANIFEST_REPO',
-];
-const APP_SECRET_KEYS = ['GITHUB_CLIENT_SECRET'];
-
-export async function loadAppEnv() {
-  if (!dbReady()) return;
-  const keys = new Set([...APP_CONFIG_KEYS, ...APP_SECRET_KEYS]);
-  const [vars, secrets] = await Promise.all([
-    rest('app_config?select=key,value'),
-    rest('platform_secrets?select=name,value'),
-  ]);
-  const all = [...vars, ...secrets.map((s) => ({ key: s.name, value: s.value }))];
-  for (const { key, value } of all) if (keys.has(key)) process.env[key] = value;
-}
-
 // Append a provisioning step entry to provision_log and bump status.
 // `fields` persists step outputs that live in row columns (e.g. manifest_pr).
 export async function logStep(name, status, entry, fields = {}) {
