@@ -5,23 +5,39 @@ progmise deploy orchestrator (generated from `node-express-api-template`).
 
 ## Architecture
 
+Hexagonal (ports & adapters), mirroring `java-maven-api-template` with
+idiomatic JS (functions + duck-typed ports, no class ceremony):
+
 ```
-src/index.js      Express app — OAuth + allowlist + /api/gh proxy + /api/manifest
-                  + component catalog routes (/api/templates, /api/components*)
-src/db.js         Supabase PostgREST client (service_role key, server-side only)
-src/provision.js  provisioning state machine — GitHub generate/secrets/vars,
-                  deploy-manifest registration PR. Each step is idempotent;
-                  status transitions logged to provision_log. The Vercel
-                  project is NOT created here — VERCEL_PROJECT_ID ships empty
-                  and the deploy workflow provisions it lazily.
-db/schema.sql     components table — apply in the Supabase SQL editor.
+src/
+  index.js                    composition root — env → adapters → usecases → app
+  app.js                      express wiring — middleware + routers
+  config/env.js               every process.env read + config guards
+  domain/                     pure rules (allowlist, component naming)
+  application/
+    ports/output/             contracts as JSDoc typedefs (IdentityProvider,
+                              ComponentCatalog, CredentialStore, RepoHost)
+    usecases/                 resolveSession, exchangeOAuthCode, listTemplates,
+                              provisionComponent (state machine), createComponent
+  infrastructure/
+    adapters/input/rest/      routers + session middleware — HTTP <-> use cases
+    adapters/output/          githubIdentity (OAuth), githubAdmin (provisioning
+                              token), supabase/ (client, componentCatalog,
+                              platformConfigStore)
+db/schema.sql                 components + platform_vars tables, Vault view
+                              — apply in the Supabase SQL editor.
 ```
 
-- Provisioning spec lives in `SPECS` (provision.js): which repo secrets/vars
-  each template kind (`app` vs `*-lib-template`) gets. Master values live in
-  the Supabase credential store (`platform_vars` + `vault.secrets`, read via
-  `platformConfig()`; process.env is only a fallback) — never exposed to the
-  frontend.
+- Dependencies point inward: routers never touch `fetch`/env directly; use
+  cases never import express; domain imports nothing.
+- The Vercel project is NOT created at provisioning time —
+  `VERCEL_PROJECT_ID` ships empty and the deploy workflow provisions it
+  lazily.
+- Provisioning spec lives in `SPECS` (provisionComponent.js): which repo
+  secrets/vars each template kind (`app` vs `*-lib-template`) gets. Master
+  values live in the Supabase credential store (`platform_vars` +
+  `vault.secrets`, read via the platformConfigStore adapter; process.env is
+  only a fallback) — never exposed to the frontend.
 
 - The SPA (`deploy-orchestrator`) proxies `/api/*` here — requests arrive
   same-origin, so there is **no CORS** and the session cookie stays
