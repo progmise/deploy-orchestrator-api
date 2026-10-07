@@ -4,7 +4,7 @@
 // machine in order, logging each transition to provision_log:
 //
 //   pending ──repo──▶ repo_created ──secrets──▶ secrets_written
-//   secrets_written ──vercel──▶ vercel_project_created ──vars──▶ vars_written
+//   secrets_written ──vars──▶ vars_written
 //   vars_written ──manifest──▶ manifest_pr_opened ──▶ ready
 //
 // Every step is idempotent: it checks external state before acting, so a
@@ -16,22 +16,20 @@ import { getComponent, logStep } from './db.js';
 const GH_TOKEN = process.env.PROVISIONING_TOKEN || '';
 const OWNER = process.env.GITHUB_OWNER || 'progmise';
 const MANIFEST_REPO = process.env.MANIFEST_REPO || 'progmise/deploy-manifest';
-const VERCEL_TOKEN = process.env.VERCEL_TOKEN || '';
-const VERCEL_TEAM_ID = process.env.VERCEL_TEAM_ID || '';
 
 // What the provisioner materializes into each new repo, per template kind.
 // Values come from this service's env (the "credential store") — secrets are
 // written as GitHub repo secrets, vars as GitHub repo variables, matching the
 // *Id references declared in deploy-manifest's infrastructures.
+// VERCEL_PROJECT_ID is written empty: the infra is created lazily by the
+// deploy workflow (scripts/ensure-vercel-project.sh) on first deploy.
 const SPECS = {
   app: {
-    vercel: true,
     manifest: true,
     secrets: ['VERCEL_TOKEN', 'DOCKER_TOKEN', 'ORCHESTRATOR_TOKEN'],
-    vars: ['VERCEL_ORG_ID', 'DOCKER_USERNAME', 'DEPLOY_ENVIRONMENTS'],
+    vars: ['VERCEL_ORG_ID', 'VERCEL_PROJECT_ID', 'DOCKER_USERNAME', 'DEPLOY_ENVIRONMENTS'],
   },
   lib: {
-    vercel: false,
     manifest: false, // libs publish to Central, they are not deploy components
     secrets: ['SONATYPE_USERNAME', 'SONATYPE_TOKEN', 'GPG_PRIVATE_KEY', 'GPG_PASSPHRASE'],
     vars: [],
@@ -121,40 +119,14 @@ async function stepSecrets(comp) {
   return { secrets_written: names, secrets_skipped: skipped };
 }
 
-async function stepVercel(comp) {
-  if (!specFor(comp.template).vercel) return { skipped: 'lib template: no vercel project' };
-  const repoName = comp.repo.split('/')[1];
-  const team = VERCEL_TEAM_ID ? `?teamId=${encodeURIComponent(VERCEL_TEAM_ID)}` : '';
-  const call = (path, opts = {}) =>
-    fetch(`https://api.vercel.com${path}${team}`, {
-      ...opts,
-      headers: {
-        Authorization: `Bearer ${VERCEL_TOKEN}`,
-        ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
-      },
-      ...(opts.body ? { body: JSON.stringify(opts.body) } : {}),
-    });
-  let project;
-  const get = await call(`/v9/projects/${encodeURIComponent(repoName)}`);
-  if (get.ok) {
-    project = await get.json();
-  } else {
-    const post = await call(`/v11/projects`, { method: 'POST', body: { name: repoName, framework: null } });
-    const data = await post.json().catch(() => ({}));
-    if (!post.ok) throw new Error(`vercel create project → ${post.status}: ${data.error?.message || ''}`.trim());
-    project = data;
-  }
-  return { vercel_project_id: project.id };
-}
-
 async function stepVars(comp) {
   const spec = specFor(comp.template);
-  const vars = [...spec.vars];
-  if (spec.vercel) vars.push('VERCEL_PROJECT_ID');
   const written = [];
-  for (const name of vars) {
-    const value = name === 'VERCEL_PROJECT_ID' ? comp.vercel_project_id : process.env[name];
-    if (!value) continue;
+  for (const name of spec.vars) {
+    // Placeholder vars are written empty and resolved lazily downstream
+    // (VERCEL_PROJECT_ID is filled by the first deploy run).
+    const value = name === 'VERCEL_PROJECT_ID' ? '' : process.env[name];
+    if (!value && name !== 'VERCEL_PROJECT_ID') continue;
     const body = { name, value };
     try {
       await gh(`/repos/${comp.repo}/actions/variables`, { method: 'POST', body });
@@ -242,8 +214,7 @@ async function stepManifest(comp) {
 const STEPS = [
   { from: 'pending', to: 'repo_created', run: stepRepo },
   { from: 'repo_created', to: 'secrets_written', run: stepSecrets },
-  { from: 'secrets_written', to: 'vercel_project_created', run: stepVercel },
-  { from: 'vercel_project_created', to: 'vars_written', run: stepVars },
+  { from: 'secrets_written', to: 'vars_written', run: stepVars },
   { from: 'vars_written', to: 'manifest_pr_opened', run: stepManifest },
 ];
 
@@ -263,7 +234,6 @@ export async function provision(name) {
       try {
         const detail = await step.run(comp);
         const fields = {};
-        if (detail?.vercel_project_id) fields.vercel_project_id = detail.vercel_project_id;
         if (detail?.manifest_pr) fields.manifest_pr = detail.manifest_pr;
         comp = await logStep(name, step.to, { step: step.to, ok: true, ...detail }, fields);
       } catch (e) {

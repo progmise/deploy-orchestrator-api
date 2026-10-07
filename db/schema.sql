@@ -21,7 +21,6 @@ create table if not exists public.components (
   --           -> vars_written -> manifest_pr_opened -> ready
   --   (any step can end in 'failed'; provision_log carries the details)
   status           text not null default 'pending',
-  vercel_project_id text,
   manifest_pr      integer,
   provision_log    jsonb not null default '[]'::jsonb,
   created_by       text not null default '',   -- GitHub login of the creator
