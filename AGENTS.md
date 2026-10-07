@@ -10,8 +10,10 @@ src/index.js      Express app — OAuth + allowlist + /api/gh proxy + /api/manif
                   + component catalog routes (/api/templates, /api/components*)
 src/db.js         Supabase PostgREST client (service_role key, server-side only)
 src/provision.js  provisioning state machine — GitHub generate/secrets/vars,
-                  Vercel project, deploy-manifest registration PR. Each step is
-                  idempotent; status transitions logged to provision_log.
+                  deploy-manifest registration PR. Each step is idempotent;
+                  status transitions logged to provision_log. The Vercel
+                  project is NOT created here — VERCEL_PROJECT_ID ships empty
+                  and the deploy workflow provisions it lazily.
 db/schema.sql     components table — apply in the Supabase SQL editor.
 ```
 
