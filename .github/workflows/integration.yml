@@ -1,0 +1,17 @@
+name: Integration
+
+on:
+  push:
+    branches:
+      - main
+      - development
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  integration:
+    name: Integration
+    uses: progmise/reusable-workflows/.github/workflows/app-integration.yml@v1
+    secrets: inherit

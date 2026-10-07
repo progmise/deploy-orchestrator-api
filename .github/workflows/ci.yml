@@ -1,0 +1,17 @@
+name: CI Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+      - development
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  ci:
+    name: CI
+    uses: progmise/reusable-workflows/.github/workflows/app-ci.yml@v1
+    secrets: inherit

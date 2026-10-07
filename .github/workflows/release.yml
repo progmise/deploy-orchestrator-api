@@ -1,0 +1,14 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    name: Release
+    uses: progmise/reusable-workflows/.github/workflows/app-release.yml@v1
+    secrets: inherit

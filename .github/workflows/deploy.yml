@@ -1,0 +1,28 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Released version to deploy (tag must exist)'
+        required: true
+        type: string
+      environment:
+        description: 'Target environment'
+        required: false
+        default: pro
+        type: choice
+        options: [pro, cert, pre]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  deploy:
+    name: Deploy
+    uses: progmise/reusable-workflows/.github/workflows/app-deploy.yml@v1
+    secrets: inherit
+    with:
+      version: ${{ inputs.version }}
+      environment: ${{ inputs.environment }}

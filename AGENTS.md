@@ -1,0 +1,45 @@
+# AGENTS.md
+
+Guide for working on **deploy-orchestrator-api** — the backend service of the
+progmise deploy orchestrator (generated from `node-express-api-template`).
+
+## Architecture
+
+```
+src/index.js    Express app — OAuth + allowlist + /api/gh proxy + /api/manifest
+```
+
+- The SPA (`deploy-dashboard`) proxies `/api/*` here — requests arrive
+  same-origin, so there is **no CORS** and the session cookie stays
+  `SameSite=Lax` + HttpOnly.
+- `FRONTEND_URL` = the SPA origin: builds the OAuth `redirect_uri`
+  (registered in the OAuth App as `<FRONTEND_URL>/api/auth/callback`) and
+  the post-login/logout redirect.
+- `ALLOWED_USERS` gates the callback AND every protected endpoint
+  (`authedUser` re-fetches `/user` per request — revoking is immediate).
+- `/api/manifest` and `/api/gh/*` require a session; `/api/health` is open.
+
+## Conventions
+
+- ESM, Express 5, no build step (`build` = `node --check src/index.js`).
+- Single root `Dockerfile` — CSA scans it, Vercel builds it (preset
+  `Container`); runtime strips npm.
+- Secrets only via env (`GITHUB_CLIENT_*`); never log tokens.
+
+## CI/CD
+
+Thin callers → `progmise/reusable-workflows` `app-*` `@v1`.
+`Setup → Build artifact → Build image → SAST ‖ SCA ‖ CSA → Tracing → Summary`;
+release adds `Validate → CI → Publish Image → Release` — **never deploys**.
+
+## Verify before done
+
+```bash
+npm ci && npm run build
+PORT=8123 node src/index.js &   # /api/health → 200, /api/me → 401, /api/manifest → 401
+```
+
+## Branches
+
+`main` (releases) + `development` (integration). Work lands on
+`<type>/<snake_description>` → PR to `development` → PR to `main`.
