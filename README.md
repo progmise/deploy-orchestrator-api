@@ -62,11 +62,33 @@ and recoverable from the dashboard.
 
 ## Deploy
 
-Vercel container (preset `Container` + root `Dockerfile`), env vars
-(Production): `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `ALLOWED_USERS`,
-`FRONTEND_URL`, and for the catalog/provisioning endpoints
-`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PROVISIONING_TOKEN`,
-`VERCEL_TOKEN`, `VERCEL_TEAM_ID`, `VERCEL_ORG_ID`, `DOCKER_USERNAME`,
-`DOCKER_TOKEN`, `ORCHESTRATOR_TOKEN`, `DEPLOY_ENVIRONMENTS`
-(see `.env.example`). Releases and deploys run through the `app-*` pipelines —
-`Release` (tag + image) then `Deploy` (or the `deploy-manifest` orchestrator).
+Vercel container (preset `Container` + root `Dockerfile`). The only env vars
+the service truly needs (Production) are the bootstrap pair:
+
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+
+On boot, `loadAppEnv()` hydrates `process.env` from the DB itself — the API
+is its own config store:
+
+| Key | Where |
+|---|---|
+| `GITHUB_CLIENT_ID`, `ALLOWED_USERS`, `FRONTEND_URL`, `GITHUB_OWNER`, `MANIFEST_REPO` | `public.app_config` |
+| `GITHUB_CLIENT_SECRET`, `PROVISIONING_TOKEN` | `vault.secrets` |
+| propagated credentials (`VERCEL_*`, `DOCKER_*`, `ORCHESTRATOR_TOKEN`, `SONATYPE_*`, `GPG_*`) | `vault.secrets` + `platform_vars` |
+
+A real env var still works as a local fallback for keys absent from the DB
+(see `.env.example`); `PORT` is always env — the runtime injects it.
+
+```sql
+insert into public.app_config (key, value) values
+  ('GITHUB_CLIENT_ID', 'Ov23…'),
+  ('ALLOWED_USERS', 'progmise'),
+  ('FRONTEND_URL', 'https://deploy-orchestrator.vercel.app'),
+  ('GITHUB_OWNER', 'progmise'),
+  ('MANIFEST_REPO', 'progmise/deploy-manifest');
+select vault.create_secret('<oauth-secret>', 'GITHUB_CLIENT_SECRET');
+select vault.create_secret('<pat>', 'PROVISIONING_TOKEN');
+```
+
+Releases and deploys run through the `app-*` pipelines — `Release` (tag +
+image) then `Deploy` (or the `deploy-manifest` orchestrator).
