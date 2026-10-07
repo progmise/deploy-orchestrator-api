@@ -40,3 +40,28 @@ end $$;
 drop trigger if exists components_touch on public.components;
 create trigger components_touch before update on public.components
   for each row execute function public.touch_updated_at();
+
+-- Platform credential store (the provisioner's "credential store"):
+-- plain values in platform_vars; secret VALUES in Supabase Vault
+-- (pgsodium-encrypted), exposed to service_role via platform_secrets.
+
+create table if not exists public.platform_vars (
+  key        text primary key,
+  value      text not null default '',
+  updated_at timestamptz not null default now()
+);
+
+alter table public.platform_vars enable row level security;
+
+drop trigger if exists platform_vars_touch on public.platform_vars;
+create trigger platform_vars_touch before update on public.platform_vars
+  for each row execute function public.touch_updated_at();
+
+create extension if not exists supabase_vault with schema vault;
+
+create or replace view public.platform_secrets as
+  select name, decrypted_secret as value from vault.decrypted_secrets;
+
+-- Views run with owner rights — keep them out of reach of anon/auth roles.
+revoke all on public.platform_secrets from anon, authenticated;
+revoke all on public.platform_vars from anon, authenticated;
