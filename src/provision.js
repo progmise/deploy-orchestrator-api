@@ -13,9 +13,11 @@
 import sodium from 'libsodium-wrappers';
 import { getComponent, logStep, platformConfig } from './db.js';
 
-const GH_TOKEN = process.env.PROVISIONING_TOKEN || '';
-const OWNER = process.env.GITHUB_OWNER || 'progmise';
-const MANIFEST_REPO = process.env.MANIFEST_REPO || 'progmise/deploy-manifest';
+// Read lazily: process.env is hydrated from the DB at boot (loadAppEnv), but
+// module-level consts are evaluated at import time — before that hydration.
+const GH_TOKEN = () => process.env.PROVISIONING_TOKEN || '';
+const OWNER = () => process.env.GITHUB_OWNER || 'progmise';
+const MANIFEST_REPO = () => process.env.MANIFEST_REPO || 'progmise/deploy-manifest';
 
 // What the provisioner materializes into each new repo, per template kind.
 // Values come from this service's env (the "credential store") — secrets are
@@ -45,7 +47,7 @@ async function gh(path, { method = 'GET', body } = {}) {
     method,
     headers: {
       Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${GH_TOKEN}`,
+      Authorization: `Bearer ${GH_TOKEN()}`,
       'X-GitHub-Api-Version': '2022-11-28',
       ...(body ? { 'Content-Type': 'application/json' } : {}),
     },
@@ -57,7 +59,7 @@ async function gh(path, { method = 'GET', body } = {}) {
 }
 
 export async function listTemplates() {
-  const repos = await gh(`/users/${OWNER}/repos?per_page=100&type=owner&sort=updated`);
+  const repos = await gh(`/users/${OWNER()}/repos?per_page=100&type=owner&sort=updated`);
   return repos
     .filter((r) => r.is_template)
     .map((r) => ({ name: r.name, description: r.description, kind: specFor(r.name) === SPECS.lib ? 'lib' : 'app' }));
@@ -71,11 +73,11 @@ async function stepRepo(comp) {
   const repoName = comp.repo.split('/')[1];
   let created = false;
   try {
-    await gh(`/repos/${OWNER}/${repoName}`);
+    await gh(`/repos/${OWNER()}/${repoName}`);
   } catch {
-    await gh(`/repos/${OWNER}/${comp.template}/generate`, {
+    await gh(`/repos/${OWNER()}/${comp.template}/generate`, {
       method: 'POST',
-      body: { owner: OWNER, name: repoName, description: comp.description, private: false, include_all_branches: false },
+      body: { owner: OWNER(), name: repoName, description: comp.description, private: false, include_all_branches: false },
     });
     created = true;
   }
@@ -85,19 +87,19 @@ async function stepRepo(comp) {
   // is the default. Repo init is racy right after generation — retry.
   let branches;
   for (let i = 0; i < 8; i++) {
-    branches = await gh(`/repos/${OWNER}/${repoName}/branches?per_page=100`).catch(() => []);
+    branches = await gh(`/repos/${OWNER()}/${repoName}/branches?per_page=100`).catch(() => []);
     if (branches.length) break;
     await sleep(1500);
   }
   const sha = branches[0]?.commit?.sha;
-  if (!sha) throw new Error(`repo ${OWNER}/${repoName} has no branches after generation`);
+  if (!sha) throw new Error(`repo ${OWNER()}/${repoName} has no branches after generation`);
   for (const name of ['main', 'development']) {
     if (branches.some((b) => b.name === name)) continue;
-    await gh(`/repos/${OWNER}/${repoName}/git/refs`, {
+    await gh(`/repos/${OWNER()}/${repoName}/git/refs`, {
       method: 'POST', body: { ref: `refs/heads/${name}`, sha },
     });
   }
-  const repo = await gh(`/repos/${OWNER}/${repoName}`, {
+  const repo = await gh(`/repos/${OWNER()}/${repoName}`, {
     method: 'PATCH', body: { default_branch: 'development' },
   });
   return { repo_created: created, default_branch: repo.default_branch };
@@ -144,7 +146,7 @@ async function stepVars(comp, cfg) {
 async function stepManifest(comp) {
   if (!specFor(comp.template).manifest) return { skipped: 'lib template: not a deploy component' };
   const repoName = comp.repo.split('/')[1];
-  const file = await gh(`/repos/${MANIFEST_REPO}/contents/manifest.yml?ref=main`);
+  const file = await gh(`/repos/${MANIFEST_REPO()}/contents/manifest.yml?ref=main`);
   let text = Buffer.from(file.content, 'base64').toString('utf8');
   if (new RegExp(`^  - name: ${comp.name}\\s*$`, 'm').test(text))
     return { skipped: 'component already in manifest' };
@@ -174,31 +176,31 @@ async function stepManifest(comp) {
   ].join('\n');
   text = text.endsWith('\n') ? text + entry : `${text}\n${entry}`;
 
-  const main = await gh(`/repos/${MANIFEST_REPO}/git/ref/heads/main`);
+  const main = await gh(`/repos/${MANIFEST_REPO()}/git/ref/heads/main`);
   const branch = `component/${comp.name}`;
   try {
-    await gh(`/repos/${MANIFEST_REPO}/git/refs`, {
+    await gh(`/repos/${MANIFEST_REPO()}/git/refs`, {
       method: 'POST', body: { ref: `refs/heads/${branch}`, sha: main.object.sha },
     });
   } catch (e) {
     if (!/Reference already exists/.test(e.message)) throw e;
   }
-  await gh(`/repos/${MANIFEST_REPO}/contents/manifest.yml`, {
+  await gh(`/repos/${MANIFEST_REPO()}/contents/manifest.yml`, {
     method: 'PUT',
     body: {
       message: `Register component ${comp.name}`,
       content: Buffer.from(text).toString('base64'),
-      sha: (await gh(`/repos/${MANIFEST_REPO}/contents/manifest.yml?ref=${branch}`)).sha,
+      sha: (await gh(`/repos/${MANIFEST_REPO()}/contents/manifest.yml?ref=${branch}`)).sha,
       branch,
     },
   });
 
   let pr;
-  const open = await gh(`/repos/${MANIFEST_REPO}/pulls?head=${MANIFEST_REPO.split('/')[0]}:${branch}&base=main&state=open`);
+  const open = await gh(`/repos/${MANIFEST_REPO()}/pulls?head=${MANIFEST_REPO().split('/')[0]}:${branch}&base=main&state=open`);
   if (open.length) {
     pr = open[0];
   } else {
-    pr = await gh(`/repos/${MANIFEST_REPO}/pulls`, {
+    pr = await gh(`/repos/${MANIFEST_REPO()}/pulls`, {
       method: 'POST',
       body: {
         title: `Register component ${comp.name}`,
@@ -252,4 +254,4 @@ export async function provision(name) {
   }
 }
 
-export const provisioningEnabled = () => Boolean(GH_TOKEN);
+export const provisioningEnabled = () => Boolean(GH_TOKEN());
