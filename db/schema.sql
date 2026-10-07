@@ -62,18 +62,6 @@ create extension if not exists supabase_vault with schema vault;
 create or replace view public.platform_secrets as
   select name, decrypted_secret as value from vault.decrypted_secrets;
 
--- The API's own env vars, loaded into process.env at boot (see loadAppEnv).
--- Plaintext keys live here (GITHUB_CLIENT_ID, ALLOWED_USERS, FRONTEND_URL,
--- GITHUB_OWNER); sensitive ones (GITHUB_CLIENT_SECRET) go to vault.secrets
--- and surface through platform_secrets like the propagated credentials.
-create table if not exists public.app_config (
-  key   text primary key,
-  value text not null
-);
-
-alter table public.app_config enable row level security;
-
 -- Views run with owner rights — keep them out of reach of anon/auth roles.
 revoke all on public.platform_secrets from anon, authenticated;
 revoke all on public.platform_vars from anon, authenticated;
-revoke all on public.app_config from anon, authenticated;

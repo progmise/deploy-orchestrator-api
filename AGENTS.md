@@ -14,17 +14,9 @@ src/provision.js  provisioning state machine — GitHub generate/secrets/vars,
                   status transitions logged to provision_log. The Vercel
                   project is NOT created here — VERCEL_PROJECT_ID ships empty
                   and the deploy workflow provisions it lazily.
-db/schema.sql     components + platform_vars + app_config tables, Vault view
-                  — apply in the Supabase SQL editor.
+db/schema.sql     components table — apply in the Supabase SQL editor.
 ```
 
-- The DB is also the API's own config store: `loadAppEnv()` (db.js) runs at
-  boot before any `process.env` read and hydrates `app_config` plaintext keys
-  (`GITHUB_CLIENT_ID`, `ALLOWED_USERS`, `FRONTEND_URL`, `GITHUB_OWNER`,
-  `MANIFEST_REPO`) + Vault secrets (`GITHUB_CLIENT_SECRET`,
-  `PROVISIONING_TOKEN`). Only `SUPABASE_*` (and `PORT`) are real env vars.
-  **Module-level env reads don't see DB values** — provision.js reads env
-  through lazy getters (`GH_TOKEN()`, `OWNER()`, …) for this reason.
 - Provisioning spec lives in `SPECS` (provision.js): which repo secrets/vars
   each template kind (`app` vs `*-lib-template`) gets. Master values live in
   the Supabase credential store (`platform_vars` + `vault.secrets`, read via
@@ -46,7 +38,7 @@ db/schema.sql     components + platform_vars + app_config tables, Vault view
 - ESM, Express 5, no build step (`build` = `node --check src/index.js`).
 - Single root `Dockerfile` — CSA scans it, Vercel builds it (preset
   `Container`); runtime strips npm.
-- Secrets only via Vault/env (`GITHUB_CLIENT_*`); never log tokens.
+- Secrets only via env (`GITHUB_CLIENT_*`); never log tokens.
 
 ## CI/CD
 
