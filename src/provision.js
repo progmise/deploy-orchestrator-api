@@ -26,13 +26,15 @@ const MANIFEST_REPO = process.env.MANIFEST_REPO || 'progmise/deploy-manifest';
 const SPECS = {
   app: {
     manifest: true,
-    secrets: ['VERCEL_TOKEN', 'DOCKER_TOKEN', 'ORCHESTRATOR_TOKEN'],
-    vars: ['VERCEL_ORG_ID', 'VERCEL_PROJECT_ID', 'DOCKER_USERNAME', 'DEPLOY_ENVIRONMENTS'],
+    secrets: ['VERCEL_TOKEN', 'DOCKER_TOKEN', 'ORCHESTRATOR_TOKEN', 'GRAFANA_OTLP_AUTH'],
+    vars: ['VERCEL_ORG_ID', 'VERCEL_PROJECT_ID', 'DOCKER_USERNAME', 'DEPLOY_ENVIRONMENTS',
+      'GRAFANA_OTLP_ENDPOINT'],
   },
   lib: {
     manifest: false, // libs publish to Central, they are not deploy components
-    secrets: ['SONATYPE_USERNAME', 'SONATYPE_TOKEN', 'GPG_PRIVATE_KEY', 'GPG_PASSPHRASE'],
-    vars: [],
+    secrets: ['SONATYPE_USERNAME', 'SONATYPE_TOKEN', 'GPG_PRIVATE_KEY', 'GPG_PASSPHRASE',
+      'GRAFANA_OTLP_AUTH'],
+    vars: ['GRAFANA_OTLP_ENDPOINT'],
   },
 };
 
