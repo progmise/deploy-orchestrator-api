@@ -36,13 +36,25 @@ pending → repo_created → secrets_written → vars_written
 
 1. generates `progmise/<repo>` from the GitHub template and ensures
    `main` + `development` branches (default: `development`),
-2. writes repo secrets/vars from this service's env (the credential store —
-   personal account, so no org-level secrets exist); `VERCEL_PROJECT_ID` is
-   written **empty** — the deploy workflow creates the Vercel project lazily
-   on first deploy and fills the var (`ensure-vercel-project.sh`),
+2. writes repo secrets/vars read from the **platform credential store** in
+   Supabase — `vault.secrets` (encrypted) for secrets, `platform_vars` for
+   variables (personal account, so no org-level secrets exist);
+   `VERCEL_PROJECT_ID` is written **empty** — the deploy workflow creates the
+   Vercel project lazily on first deploy and fills the var
+   (`ensure-vercel-project.sh`),
 3. opens a PR on `deploy-manifest` adding `components[]` + the
    `environments[].infrastructures[]` vercel entry (`lib` templates skip it —
    they publish to Central, not to a deploy target).
+
+Seed the store in the Supabase SQL editor:
+
+```sql
+select vault.create_secret('<value>', 'VERCEL_TOKEN');       -- DOCKER_TOKEN, ORCHESTRATOR_TOKEN…
+insert into public.platform_vars (key, value) values
+  ('VERCEL_ORG_ID', 'team_xxx'),
+  ('DOCKER_USERNAME', 'progmise'),
+  ('DEPLOY_ENVIRONMENTS', '["pro"]');
+```
 
 Each step is idempotent and logged in `provision_log` — a failed component
 retries from the last completed status, so partial provisioning is visible

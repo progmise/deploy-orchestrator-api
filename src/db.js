@@ -48,8 +48,25 @@ export function updateComponent(name, patch) {
   }).then((rows) => rows?.[0] ?? null);
 }
 
+// --- Platform credential store ----------------------------------------------
+// Master copies of the values propagated to each generated repo:
+//   platform_vars    — plain key/value (VERCEL_ORG_ID, DOCKER_USERNAME…)
+//   platform_secrets — view over vault.decrypted_secrets (VERCEL_TOKEN…)
+// Values are read per provisioning run; process.env acts as a local fallback
+// for entries missing in the store.
+
+export async function platformConfig() {
+  const [vars, secrets] = await Promise.all([
+    rest('platform_vars?select=key,value'),
+    rest('platform_secrets?select=name,value'),
+  ]);
+  const cfg = Object.fromEntries(secrets.map((s) => [s.name, s.value]));
+  for (const v of vars) cfg[v.key] = v.value;
+  return cfg;
+}
+
 // Append a provisioning step entry to provision_log and bump status.
-// `fields` persists step outputs that live in row columns (vercel_project_id…).
+// `fields` persists step outputs that live in row columns (e.g. manifest_pr).
 export async function logStep(name, status, entry, fields = {}) {
   const row = await getComponent(name);
   if (!row) throw new Error(`component ${name} not found`);

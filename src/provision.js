@@ -11,7 +11,7 @@
 // 'failed' component can be retried and resumes from the last good status.
 
 import sodium from 'libsodium-wrappers';
-import { getComponent, logStep } from './db.js';
+import { getComponent, logStep, platformConfig } from './db.js';
 
 const GH_TOKEN = process.env.PROVISIONING_TOKEN || '';
 const OWNER = process.env.GITHUB_OWNER || 'progmise';
@@ -103,14 +103,14 @@ async function stepRepo(comp) {
   return { repo_created: created, default_branch: repo.default_branch };
 }
 
-async function stepSecrets(comp) {
+async function stepSecrets(comp, cfg) {
   const spec = specFor(comp.template);
-  const names = spec.secrets.filter((n) => process.env[n]);
-  const skipped = spec.secrets.filter((n) => !process.env[n]);
+  const names = spec.secrets.filter((n) => cfg[n]);
+  const skipped = spec.secrets.filter((n) => !cfg[n]);
   await sodium.ready;
   const { key, key_id } = await gh(`/repos/${comp.repo}/actions/secrets/public-key`);
   for (const name of names) {
-    const sealed = sodium.crypto_box_seal(process.env[name], sodium.from_base64(key, sodium.base64_variants.ORIGINAL));
+    const sealed = sodium.crypto_box_seal(cfg[name], sodium.from_base64(key, sodium.base64_variants.ORIGINAL));
     await gh(`/repos/${comp.repo}/actions/secrets/${name}`, {
       method: 'PUT',
       body: { encrypted_value: sodium.to_base64(sealed, sodium.base64_variants.ORIGINAL), key_id },
@@ -119,13 +119,13 @@ async function stepSecrets(comp) {
   return { secrets_written: names, secrets_skipped: skipped };
 }
 
-async function stepVars(comp) {
+async function stepVars(comp, cfg) {
   const spec = specFor(comp.template);
   const written = [];
   for (const name of spec.vars) {
     // Placeholder vars are written empty and resolved lazily downstream
     // (VERCEL_PROJECT_ID is filled by the first deploy run).
-    const value = name === 'VERCEL_PROJECT_ID' ? '' : process.env[name];
+    const value = name === 'VERCEL_PROJECT_ID' ? '' : cfg[name];
     if (!value && name !== 'VERCEL_PROJECT_ID') continue;
     const body = { name, value };
     try {
@@ -229,10 +229,13 @@ export async function provision(name) {
   try {
     let comp = await getComponent(name);
     if (!comp) throw new Error(`component ${name} not found`);
+    // Platform credential store (Supabase) with env vars as local fallback.
+    const store = await platformConfig();
+    const cfg = new Proxy(process.env, { get: (env, k) => store[k] ?? env[k] });
     for (const step of STEPS) {
       if (comp.status !== step.from) continue;
       try {
-        const detail = await step.run(comp);
+        const detail = await step.run(comp, cfg);
         const fields = {};
         if (detail?.manifest_pr) fields.manifest_pr = detail.manifest_pr;
         comp = await logStep(name, step.to, { step: step.to, ok: true, ...detail }, fields);

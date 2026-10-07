@@ -18,8 +18,10 @@ db/schema.sql     components table — apply in the Supabase SQL editor.
 ```
 
 - Provisioning spec lives in `SPECS` (provision.js): which repo secrets/vars
-  each template kind (`app` vs `*-lib-template`) gets. Master values are env
-  vars of this service — never exposed to the frontend.
+  each template kind (`app` vs `*-lib-template`) gets. Master values live in
+  the Supabase credential store (`platform_vars` + `vault.secrets`, read via
+  `platformConfig()`; process.env is only a fallback) — never exposed to the
+  frontend.
 
 - The SPA (`deploy-orchestrator`) proxies `/api/*` here — requests arrive
   same-origin, so there is **no CORS** and the session cookie stays
