@@ -1,7 +1,7 @@
 # deploy-orchestrator-api
 
 Backend of the **progmise deploy orchestrator** — the API service behind
-[`deploy-dashboard`](https://github.com/progmise/deploy-dashboard) (the SPA).
+[`deploy-orchestrator`](https://github.com/progmise/deploy-orchestrator) (the SPA).
 Generated from `node-express-api-template`.
 
 ## What it does

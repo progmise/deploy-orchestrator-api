@@ -9,7 +9,7 @@ progmise deploy orchestrator (generated from `node-express-api-template`).
 src/index.js    Express app — OAuth + allowlist + /api/gh proxy + /api/manifest
 ```
 
-- The SPA (`deploy-dashboard`) proxies `/api/*` here — requests arrive
+- The SPA (`deploy-orchestrator`) proxies `/api/*` here — requests arrive
   same-origin, so there is **no CORS** and the session cookie stays
   `SameSite=Lax` + HttpOnly.
 - `FRONTEND_URL` = the SPA origin: builds the OAuth `redirect_uri`
