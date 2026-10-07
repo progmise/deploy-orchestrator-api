@@ -1,10 +1,13 @@
 import express from 'express';
 import { createRequire } from 'node:module';
+import { dbReady, listComponents, getComponent, createComponent } from './db.js';
+import { listTemplates, provision, provisioningEnabled } from './provision.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
 const app = express();
+app.use(express.json());
 const PORT = process.env.PORT || 8080;
 const CLIENT_ID = process.env.GITHUB_CLIENT_ID || '';
 const CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || '';
@@ -120,6 +123,102 @@ app.get('/api/manifest', async (req, res) => {
   const r = await fetch(
     'https://raw.githubusercontent.com/progmise/deploy-manifest/main/manifest.yml');
   res.type('text/yaml').send(await r.text());
+});
+
+// --- Component catalog & provisioning ---------------------------------------
+// Supabase holds the lifecycle registry; deploy-manifest is its deployable
+// projection (a registration PR lands when provisioning completes).
+
+const catalogReady = (res) => {
+  if (!dbReady()) {
+    res.status(503).json({ error: 'component catalog not configured (SUPABASE_*)' });
+    return false;
+  }
+  return true;
+};
+
+app.get('/api/templates', async (req, res) => {
+  if (!await authedUser(req, res)) return;
+  if (!provisioningEnabled())
+    return res.status(503).json({ error: 'provisioning not configured (PROVISIONING_TOKEN)' });
+  try {
+    res.json(await listTemplates());
+  } catch (e) {
+    res.status(502).json({ error: String(e.message || e) });
+  }
+});
+
+app.get('/api/components', async (req, res) => {
+  if (!await authedUser(req, res)) return;
+  if (!catalogReady(res)) return;
+  try {
+    res.json(await listComponents());
+  } catch (e) {
+    res.status(502).json({ error: String(e.message || e) });
+  }
+});
+
+const NAME_RE = /^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$/;
+const REPO_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/;
+
+app.post('/api/components', async (req, res) => {
+  const auth = await authedUser(req, res);
+  if (!auth) return;
+  if (!catalogReady(res)) return;
+  if (!provisioningEnabled())
+    return res.status(503).json({ error: 'provisioning not configured (PROVISIONING_TOKEN)' });
+
+  const { name, repo, description = '', template } = req.body || {};
+  if (!NAME_RE.test(name || ''))
+    return res.status(400).json({ error: 'name must be lowercase letters, digits and hyphens' });
+  if (!REPO_RE.test(repo || ''))
+    return res.status(400).json({ error: 'repo must be a valid GitHub repository name' });
+
+  let templates;
+  try {
+    templates = await listTemplates();
+  } catch (e) {
+    return res.status(502).json({ error: String(e.message || e) });
+  }
+  if (!templates.some((t) => t.name === template))
+    return res.status(400).json({ error: `unknown template '${template}'` });
+  if (await getComponent(name))
+    return res.status(409).json({ error: `component '${name}' already exists` });
+
+  const row = await createComponent({
+    name,
+    shortname: name.toUpperCase().replace(/[^A-Z0-9]/g, ''),
+    repo: `${process.env.GITHUB_OWNER || 'progmise'}/${repo}`,
+    description: String(description).slice(0, 500),
+    template,
+    created_by: auth.user.login,
+  });
+
+  try {
+    res.status(201).json(await provision(row.name));
+  } catch (e) {
+    res.status(502).json({ error: String(e.message || e), component: await getComponent(name) });
+  }
+});
+
+app.get('/api/components/:name', async (req, res) => {
+  if (!await authedUser(req, res)) return;
+  if (!catalogReady(res)) return;
+  const row = await getComponent(req.params.name).catch(() => null);
+  return row ? res.json(row) : res.status(404).json({ error: 'not found' });
+});
+
+// Re-runs the pending provisioning steps for a failed/pending component.
+app.post('/api/components/:name/provision', async (req, res) => {
+  if (!await authedUser(req, res)) return;
+  if (!catalogReady(res)) return;
+  if (!await getComponent(req.params.name))
+    return res.status(404).json({ error: 'not found' });
+  try {
+    res.json(await provision(req.params.name));
+  } catch (e) {
+    res.status(502).json({ error: String(e.message || e), component: await getComponent(req.params.name) });
+  }
 });
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', version: pkg.version }));

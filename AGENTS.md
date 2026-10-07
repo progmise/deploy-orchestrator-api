@@ -6,8 +6,20 @@ progmise deploy orchestrator (generated from `node-express-api-template`).
 ## Architecture
 
 ```
-src/index.js    Express app — OAuth + allowlist + /api/gh proxy + /api/manifest
+src/index.js      Express app — OAuth + allowlist + /api/gh proxy + /api/manifest
+                  + component catalog routes (/api/templates, /api/components*)
+src/db.js         Supabase PostgREST client (service_role key, server-side only)
+src/provision.js  provisioning state machine — GitHub generate/secrets/vars,
+                  deploy-manifest registration PR. Each step is idempotent;
+                  status transitions logged to provision_log. The Vercel
+                  project is NOT created here — VERCEL_PROJECT_ID ships empty
+                  and the deploy workflow provisions it lazily.
+db/schema.sql     components table — apply in the Supabase SQL editor.
 ```
+
+- Provisioning spec lives in `SPECS` (provision.js): which repo secrets/vars
+  each template kind (`app` vs `*-lib-template`) gets. Master values are env
+  vars of this service — never exposed to the frontend.
 
 - The SPA (`deploy-orchestrator`) proxies `/api/*` here — requests arrive
   same-origin, so there is **no CORS** and the session cookie stays
