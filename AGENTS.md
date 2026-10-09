@@ -23,9 +23,9 @@ src/
     adapters/input/rest/      routers + session middleware — HTTP <-> use cases
     adapters/output/          githubIdentity (OAuth), githubAdmin (provisioning
                               token), supabase/ (client, componentCatalog,
-                              platformConfigStore)
-db/schema.sql                 components + platform_vars tables, Vault view
-                              — apply in the Supabase SQL editor.
+                              templateCatalog, platformConfigStore)
+db/schema.sql                 templates + components + platform_vars tables,
+                              Vault view — apply in the Supabase SQL editor.
 ```
 
 - Dependencies point inward: routers never touch `fetch`/env directly; use
@@ -34,7 +34,9 @@ db/schema.sql                 components + platform_vars tables, Vault view
   `VERCEL_PROJECT_ID` ships empty and the deploy workflow provisions it
   lazily.
 - Provisioning spec lives in `SPECS` (provisionComponent.js): which repo
-  secrets/vars each template kind (`app` vs `*-lib-template`) gets. Master
+  secrets/vars each template **kind** (`app`/`lib`) gets. The kind comes from
+  the `templates` catalog row — not from naming conventions — and
+  `components.template` is a FK to it. Master
   values live in the Supabase credential store (`platform_vars` +
   `vault.secrets`, read via the platformConfigStore adapter; process.env is
   only a fallback) — never exposed to the frontend.
