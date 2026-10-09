@@ -11,7 +11,8 @@
 // 'failed' component can be retried and resumes from the last good status.
 
 import sodium from 'libsodium-wrappers';
-import { validComponentName, validRepoName, shortnameFor } from '../../domain/component.js';
+import { validComponentName, validRepoName, validShortname, shortnameFor,
+  resolveConfig, BRANCH_STRATEGIES } from '../../domain/component.js';
 
 // What the provisioner materializes into each new repo, per template kind.
 // Values come from the platform credential store (Supabase) — secrets are
@@ -74,9 +75,13 @@ export const provisionComponent = ({ catalog, store, repoHost, templates }) => {
     }
 
     // GitHub's generate endpoint copies only the template's default branch.
-    // Our convention is main + development: ensure both exist and
-    // development is the default. Repo init is racy right after generation —
-    // retry.
+    // The component's branch strategy decides what the repo converges to:
+    //   gitflow → protected main + development (development = default)
+    //   trunk   → protected main only (development is dropped if copied)
+    // Repo init is racy right after generation — retry.
+    const strategy = comp.branch_strategy === 'trunk' ? 'trunk' : 'gitflow';
+    const wanted = strategy === 'trunk' ? ['main'] : ['main', 'development'];
+    const defaultBranch = strategy === 'trunk' ? 'main' : 'development';
     let branches;
     for (let i = 0; i < 8; i++) {
       branches = await gh(`/repos/${OWNER}/${repoName}/branches?per_page=100`).catch(() => []);
@@ -85,16 +90,34 @@ export const provisionComponent = ({ catalog, store, repoHost, templates }) => {
     }
     const sha = branches[0]?.commit?.sha;
     if (!sha) throw new Error(`repo ${OWNER}/${repoName} has no branches after generation`);
-    for (const name of ['main', 'development']) {
+    for (const name of wanted) {
       if (branches.some((b) => b.name === name)) continue;
       await gh(`/repos/${OWNER}/${repoName}/git/refs`, {
         method: 'POST', body: { ref: `refs/heads/${name}`, sha },
       });
     }
     const repo = await gh(`/repos/${OWNER}/${repoName}`, {
-      method: 'PATCH', body: { default_branch: 'development' },
+      method: 'PATCH', body: { default_branch: defaultBranch },
     });
-    return { repo_created: created, default_branch: repo.default_branch };
+    if (strategy === 'trunk' && branches.some((b) => b.name === 'development'))
+      await gh(`/repos/${OWNER}/${repoName}/git/refs/heads/development`, { method: 'DELETE' });
+    // Same policy as the org's other repos: PR required (0 approvals),
+    // admins enforced, no force-push, no delete.
+    for (const name of wanted) {
+      await gh(`/repos/${OWNER}/${repoName}/branches/${name}/protection`, {
+        method: 'PUT',
+        body: {
+          required_status_checks: null,
+          enforce_admins: true,
+          required_pull_request_reviews: { required_approving_review_count: 0 },
+          restrictions: null,
+          allow_force_pushes: false,
+          allow_deletions: false,
+        },
+      });
+    }
+    return { repo_created: created, default_branch: repo.default_branch,
+      branch_strategy: strategy, protected: wanted };
   }
 
   async function stepSecrets(comp, cfg) {
@@ -258,11 +281,16 @@ export const provisionComponent = ({ catalog, store, repoHost, templates }) => {
 // Use case: validate + persist the catalog row, then provision it.
 // Returns { status, ... } — the REST adapter maps it to HTTP.
 export const createComponent = ({ catalog, repoHost, templates, provision }) =>
-  async ({ name, repo, description = '', template, createdBy }) => {
+  async ({ name, shortname, repo, description = '', template, config, createdBy }) => {
     if (!validComponentName(name))
       return { status: 400, error: 'name must be lowercase letters, digits and hyphens' };
     if (!validRepoName(repo))
       return { status: 400, error: 'repo must be a valid GitHub repository name' };
+    if (!String(description).trim())
+      return { status: 400, error: 'description is required' };
+    const short = shortname || shortnameFor(name);
+    if (!validShortname(short))
+      return { status: 400, error: 'shortname must be uppercase letters and digits' };
 
     let tpl;
     try {
@@ -275,12 +303,21 @@ export const createComponent = ({ catalog, repoHost, templates, provision }) =>
     if (await catalog.get(name))
       return { status: 409, error: `component '${name}' already exists` };
 
+    // Personalización answers are resolved server-side against the
+    // template's declared fields — fixed values are authoritative, select
+    // values must match a declared option.
+    const resolved = resolveConfig(tpl.fields, config || {});
+    const branchStrategy = BRANCH_STRATEGIES.includes(resolved.branch_strategy)
+      ? resolved.branch_strategy : 'gitflow';
+
     const row = await catalog.create({
       name,
-      shortname: shortnameFor(name),
+      shortname: short,
       repo: `${repoHost.owner}/${repo}`,
       description: String(description).slice(0, 500),
       template,
+      branch_strategy: branchStrategy,
+      config: resolved,
       created_by: createdBy,
     });
 
