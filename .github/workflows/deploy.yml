@@ -13,6 +13,11 @@ on:
         default: pro
         type: choice
         options: [pro, cert, pre]
+      ci_id:
+        description: Infrastructure id (ci_id) passed by the orchestrator
+        required: false
+        type: string
+        default: \'\'
 
 permissions:
   contents: read
@@ -26,3 +31,4 @@ jobs:
     with:
       version: ${{ inputs.version }}
       environment: ${{ inputs.environment }}
+      ci_id: ${{ inputs.ci_id }}
