@@ -6,11 +6,12 @@ import { githubIdentity } from './infrastructure/adapters/output/githubIdentity.
 import { githubAdmin } from './infrastructure/adapters/output/githubAdmin.js';
 import { supabaseClient } from './infrastructure/adapters/output/supabase/client.js';
 import { componentCatalog } from './infrastructure/adapters/output/supabase/componentCatalog.js';
+import { templateCatalog } from './infrastructure/adapters/output/supabase/templateCatalog.js';
 import { platformConfigStore } from './infrastructure/adapters/output/supabase/platformConfigStore.js';
 import { resolveSession } from './application/usecases/resolveSession.js';
 import { exchangeOAuthCode } from './application/usecases/exchangeOAuthCode.js';
 import { listTemplates } from './application/usecases/listTemplates.js';
-import { provisionComponent, createComponent, specFor }
+import { provisionComponent, createComponent }
   from './application/usecases/provisionComponent.js';
 import { createApp } from './app.js';
 
@@ -28,18 +29,19 @@ const repoHost = githubAdmin({
 });
 const sb = supabaseClient({ url: env.supabaseUrl, key: env.supabaseServiceKey });
 const catalog = componentCatalog({ client: sb });
+const templates = templateCatalog({ client: sb });
 const store = platformConfigStore({ client: sb });
 
 const usecases = {
   resolveSession: resolveSession({ provider, allowedUsers: env.allowedUsers }),
   exchangeOAuthCode: exchangeOAuthCode({ provider, allowedUsers: env.allowedUsers }),
-  listTemplates: listTemplates({ repoHost, specFor }),
+  listTemplates: listTemplates({ templates }),
   listComponents: catalog.list,
   getComponent: catalog.get,
-  provision: provisionComponent({ catalog, store, repoHost }),
+  provision: provisionComponent({ catalog, store, repoHost, templates }),
 };
 usecases.createComponent = createComponent({
-  catalog, repoHost, templates: usecases.listTemplates, provision: usecases.provision,
+  catalog, repoHost, templates, provision: usecases.provision,
 });
 
 createApp({ pkg, env, usecases, catalogReady, provisioningEnabled })

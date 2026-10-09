@@ -36,14 +36,23 @@ const SPECS = {
   },
 };
 
-export const specFor = (template) => SPECS[/-lib-template$/.test(template) ? 'lib' : 'app'];
+export const specFor = (kind) => SPECS[kind];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export const provisionComponent = ({ catalog, store, repoHost }) => {
+export const provisionComponent = ({ catalog, store, repoHost, templates }) => {
   const gh = repoHost.api;
   const OWNER = repoHost.owner;
   const MANIFEST_REPO = repoHost.manifestRepo;
+
+  // Resolves the template's provisioning spec from the catalog row —
+  // the registered kind is authoritative over any naming convention.
+  async function specOf(comp) {
+    const tpl = await templates.get(comp.template);
+    const spec = tpl && specFor(tpl.kind);
+    if (!spec) throw new Error(`unknown template '${comp.template}'`);
+    return spec;
+  }
 
   // --- Steps ---------------------------------------------------------------
 
@@ -53,6 +62,9 @@ export const provisionComponent = ({ catalog, store, repoHost }) => {
     try {
       await gh(`/repos/${OWNER}/${repoName}`);
     } catch {
+      const tpl = await gh(`/repos/${OWNER}/${comp.template}`);
+      if (!tpl.is_template)
+        throw new Error(`${comp.template} is not marked as a template repository`);
       await gh(`/repos/${OWNER}/${comp.template}/generate`, {
         method: 'POST',
         body: { owner: OWNER, name: repoName, description: comp.description,
@@ -86,7 +98,7 @@ export const provisionComponent = ({ catalog, store, repoHost }) => {
   }
 
   async function stepSecrets(comp, cfg) {
-    const spec = specFor(comp.template);
+    const spec = await specOf(comp);
     const names = spec.secrets.filter((n) => cfg[n]);
     const skipped = spec.secrets.filter((n) => !cfg[n]);
     await sodium.ready;
@@ -104,7 +116,7 @@ export const provisionComponent = ({ catalog, store, repoHost }) => {
   }
 
   async function stepVars(comp, cfg) {
-    const spec = specFor(comp.template);
+    const spec = await specOf(comp);
     const written = [];
     for (const name of spec.vars) {
       // Placeholder vars are written empty and resolved lazily downstream
@@ -127,7 +139,7 @@ export const provisionComponent = ({ catalog, store, repoHost }) => {
   // Insert the infra block (app components only) and the component entry
   // into manifest.yml, bump its version, and open the registration PR.
   async function stepManifest(comp) {
-    if (!specFor(comp.template).manifest)
+    if (!(await specOf(comp)).manifest)
       return { skipped: 'lib template: not a deploy component' };
     const repoName = comp.repo.split('/')[1];
     const file = await gh(`/repos/${MANIFEST_REPO}/contents/manifest.yml?ref=main`);
@@ -252,13 +264,13 @@ export const createComponent = ({ catalog, repoHost, templates, provision }) =>
     if (!validRepoName(repo))
       return { status: 400, error: 'repo must be a valid GitHub repository name' };
 
-    let list;
+    let tpl;
     try {
-      list = await templates();
+      tpl = await templates.get(template);
     } catch (e) {
       return { status: 502, error: String(e.message || e) };
     }
-    if (!list.some((t) => t.name === template))
+    if (!tpl)
       return { status: 400, error: `unknown template '${template}'` };
     if (await catalog.get(name))
       return { status: 409, error: `component '${name}' already exists` };
