@@ -19,6 +19,14 @@ create table if not exists public.templates (
   -- (Central publishing, no manifest step)
   kind         text not null check (kind in ('app', 'lib')),
   description  text not null default '',
+  -- Wizard "Personalización" schema — array of fields the dashboard
+  -- renders for this template:
+  --   {key, label, type:'select', options:[{value,label}], default}
+  --   {key, label, type:'fixed', value}
+  -- Answers land in components.config; branch_strategy drives which
+  -- branches the provisioner creates (gitflow: main+development;
+  -- trunk: main only).
+  fields       jsonb not null default '[]'::jsonb,
   created_at   timestamptz not null default now()
 );
 
@@ -47,6 +55,12 @@ create table if not exists public.components (
   --           -> vars_written -> manifest_pr_opened -> ready
   --   (any step can end in 'failed'; provision_log carries the details)
   status           text not null default 'pending',
+  -- Branch model the provisioner materializes: 'gitflow' creates
+  -- protected main + development (dev = default); 'trunk' only main.
+  branch_strategy  text not null default 'gitflow'
+    check (branch_strategy in ('gitflow', 'trunk')),
+  -- Wizard "Personalización" answers (declared by templates.fields).
+  config           jsonb not null default '{}'::jsonb,
   manifest_pr      integer,
   provision_log    jsonb not null default '[]'::jsonb,
   created_by       text not null default '',   -- GitHub login of the creator
