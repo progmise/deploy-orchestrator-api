@@ -18,7 +18,11 @@ src/
     ports/output/             contracts as JSDoc typedefs (IdentityProvider,
                               ComponentCatalog, CredentialStore, RepoHost)
     usecases/                 resolveSession, exchangeOAuthCode, listTemplates,
-                              provisionComponent (state machine), createComponent
+                              provisionComponent (state machine), createComponent,
+                              members, releases (RLSE registry: list/create/
+                              detail/publish/deploy — publish flips the manifest
+                              draft via repoHost; deploy dispatches deploy.yml
+                              with the RLSE number, which is what unlocks `pro`)
   infrastructure/
     adapters/input/rest/      routers + session middleware — HTTP <-> use cases
     adapters/output/          githubIdentity (OAuth), githubAdmin (provisioning

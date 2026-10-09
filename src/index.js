@@ -6,6 +6,8 @@ import { githubIdentity } from './infrastructure/adapters/output/githubIdentity.
 import { githubAdmin } from './infrastructure/adapters/output/githubAdmin.js';
 import { supabaseClient } from './infrastructure/adapters/output/supabase/client.js';
 import { componentCatalog } from './infrastructure/adapters/output/supabase/componentCatalog.js';
+import { memberCatalog } from './infrastructure/adapters/output/supabase/memberCatalog.js';
+import { releaseCatalog } from './infrastructure/adapters/output/supabase/releaseCatalog.js';
 import { templateCatalog } from './infrastructure/adapters/output/supabase/templateCatalog.js';
 import { platformConfigStore } from './infrastructure/adapters/output/supabase/platformConfigStore.js';
 import { resolveSession } from './application/usecases/resolveSession.js';
@@ -13,6 +15,9 @@ import { exchangeOAuthCode } from './application/usecases/exchangeOAuthCode.js';
 import { listTemplates } from './application/usecases/listTemplates.js';
 import { provisionComponent, createComponent }
   from './application/usecases/provisionComponent.js';
+import { createMember } from './application/usecases/members.js';
+import { listReleases, createRelease, getRelease, publishRelease, deployRelease }
+  from './application/usecases/releases.js';
 import { createApp } from './app.js';
 
 const require = createRequire(import.meta.url);
@@ -30,12 +35,21 @@ const repoHost = githubAdmin({
 const sb = supabaseClient({ url: env.supabaseUrl, key: env.supabaseServiceKey });
 const catalog = componentCatalog({ client: sb });
 const templates = templateCatalog({ client: sb });
+const members = memberCatalog({ client: sb });
+const releases = releaseCatalog({ client: sb });
 const store = platformConfigStore({ client: sb });
 
 const usecases = {
-  resolveSession: resolveSession({ provider, allowedUsers: env.allowedUsers }),
-  exchangeOAuthCode: exchangeOAuthCode({ provider, allowedUsers: env.allowedUsers }),
+  resolveSession: resolveSession({ provider, allowedUsers: env.allowedUsers, members }),
+  exchangeOAuthCode: exchangeOAuthCode({ provider, allowedUsers: env.allowedUsers, members }),
   listTemplates: listTemplates({ templates }),
+  listMembers: members.list,
+  createMember: createMember({ members, repoHost }),
+  listReleases: listReleases({ releases, repoHost, manifestRepo: env.manifestRepo }),
+  createRelease: createRelease({ releases }),
+  getRelease: getRelease({ releases, repoHost, manifestRepo: env.manifestRepo }),
+  publishRelease: publishRelease({ releases, repoHost, manifestRepo: env.manifestRepo }),
+  deployRelease: deployRelease({ releases, repoHost, manifestRepo: env.manifestRepo }),
   listComponents: catalog.list,
   getComponent: catalog.get,
   provision: provisionComponent({ catalog, store, repoHost, templates }),
