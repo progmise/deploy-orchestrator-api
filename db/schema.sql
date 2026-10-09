@@ -5,6 +5,32 @@
 -- so no RLS policies are needed for the dashboard — the API is the only
 -- reader/writer and enforces auth itself (GitHub OAuth + allowlist).
 
+-- Template registry — which GitHub template repos the wizard offers, and
+-- the kind that drives the provisioning spec (secrets/vars/manifest step).
+-- The row is the source of truth; GitHub `is_template` is only the
+-- generation mechanism (verified by the provisioner before generating).
+
+create table if not exists public.templates (
+  -- Template repo name, e.g. node-express-api-template
+  name         text primary key,
+  -- Full repo coordinates, e.g. progmise/node-express-api-template
+  repo         text not null unique,
+  -- 'app' = deployable component (manifest registration); 'lib' = library
+  -- (Central publishing, no manifest step)
+  kind         text not null check (kind in ('app', 'lib')),
+  description  text not null default '',
+  created_at   timestamptz not null default now()
+);
+
+alter table public.templates enable row level security;
+revoke all on public.templates from anon, authenticated;
+
+-- On an existing database (components already created), also run:
+--   alter table public.components
+--     add constraint components_template_fkey
+--     foreign key (template) references public.templates(name);
+-- after seeding templates so existing rows resolve.
+
 create table if not exists public.components (
   -- Component identity — lands in deploy-manifest as components[].name
   name             text primary key,
@@ -15,9 +41,9 @@ create table if not exists public.components (
   repo             text not null unique,
   description      text not null default '',
   -- Template repo it was generated from, e.g. node-express-api-template
-  template         text not null,
+  template         text not null references public.templates(name),
   -- Provisioning state machine:
-  --   pending -> repo_created -> secrets_written -> vercel_project_created
+  --   pending -> repo_created -> secrets_written
   --           -> vars_written -> manifest_pr_opened -> ready
   --   (any step can end in 'failed'; provision_log carries the details)
   status           text not null default 'pending',
