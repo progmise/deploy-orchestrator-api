@@ -108,3 +108,23 @@ create or replace view public.platform_secrets as
 -- Views run with owner rights — keep them out of reach of anon/auth roles.
 revoke all on public.platform_secrets from anon, authenticated;
 revoke all on public.platform_vars from anon, authenticated;
+
+-- Team registry — gates login (alongside ALLOWED_USERS) and drives roles:
+--   developer       repo access
+--   technical-lead  approves PRs (future: required reviewer on release PRs)
+create table if not exists public.members (
+  github_username text primary key,
+  full_name       text not null,
+  email           text not null,
+  roles           text[] not null default '{developer}',
+  created_at      timestamptz not null default now(),
+  created_by      text,
+  constraint members_roles_check
+    check (roles <@ array['developer','technical-lead']::text[])
+);
+
+alter table public.members enable row level security;
+
+drop policy if exists members_service on public.members;
+create policy members_service on public.members
+  for all to service_role using (true) with check (true);
