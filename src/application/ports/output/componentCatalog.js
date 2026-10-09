@@ -11,6 +11,8 @@
  * @property {string} template      template repo it was generated from
  * @property {string} status        pending|repo_created|secrets_written|
  *                                  vars_written|manifest_pr_opened|ready|failed
+ * @property {string} branch_strategy  gitflow|trunk — branches the repo gets
+ * @property {object} config        Personalización answers (templates.fields)
  * @property {number|null} manifest_pr
  * @property {Array}  provision_log
  * @property {string} created_by    GitHub login

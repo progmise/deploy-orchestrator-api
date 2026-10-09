@@ -47,9 +47,9 @@ export const componentsRouter = ({ usecases, catalogReady, provisioningEnabled }
       if (!session) return;
       if (!catalogOk(res)) return;
       if (!provisioningOk(res)) return;
-      const { name, repo, description = '', template } = req.body || {};
+      const { name, shortname, repo, description = '', template, config } = req.body || {};
       const result = await usecases.createComponent({
-        name, repo, description, template, createdBy: session.user.login,
+        name, shortname, repo, description, template, config, createdBy: session.user.login,
       });
       const { status, ...body } = result;
       res.status(status).json(result.component ?? body);
