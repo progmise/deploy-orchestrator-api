@@ -4,8 +4,8 @@
 export const releaseCatalog = ({ client }) => ({
   list: () => client.rest('releases?select=*&order=number.desc'),
 
-  async get(id) {
-    const rows = await client.rest(`releases?id=eq.${id}&select=*`);
+  async get(number) {
+    const rows = await client.rest(`releases?number=eq.${number}&select=*`);
     return rows[0] || null;
   },
 
