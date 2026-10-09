@@ -108,3 +108,60 @@ create or replace view public.platform_secrets as
 -- Views run with owner rights — keep them out of reach of anon/auth roles.
 revoke all on public.platform_secrets from anon, authenticated;
 revoke all on public.platform_vars from anon, authenticated;
+
+-- Team registry — gates login (alongside ALLOWED_USERS) and drives roles:
+--   developer       repo access
+--   technical-lead  approves PRs (future: required reviewer on release PRs)
+create table if not exists public.members (
+  github_username text primary key,
+  full_name       text not null,
+  email           text not null,
+  roles           text[] not null default '{developer}',
+  created_at      timestamptz not null default now(),
+  created_by      text,
+  constraint members_roles_check
+    check (roles <@ array['developer','technical-lead']::text[])
+);
+
+alter table public.members enable row level security;
+
+drop policy if exists members_service on public.members;
+create policy members_service on public.members
+  for all to service_role using (true) with check (true);
+
+-- Release registry — one row per dashboard release (RLSE<number>). The
+-- release itself lives in deploy-manifest as a GitHub Release (draft →
+-- published); this table carries the dashboard metadata (description,
+-- planned date) and tracks per-environment deploys.
+create table if not exists public.releases (
+  number       bigint generated always as identity primary key,
+  version      text not null,          -- manifest release version, e.g. 1.6.0
+  description  text not null,
+  planned_date date,
+  created_at   timestamptz not null default now(),
+  created_by   text
+);
+
+alter table public.releases enable row level security;
+
+drop policy if exists releases_service on public.releases;
+create policy releases_service on public.releases
+  for all to service_role using (true) with check (true);
+
+-- Per (release, environment) deploy tracking — written when the dashboard
+-- dispatches deploy.yml on the manifest repo; status refreshed from the run.
+create table if not exists public.release_deployments (
+  release_id  bigint not null references public.releases(number) on delete cascade,
+  environment text not null,
+  status      text not null default 'queued',
+  run_id      bigint,
+  run_url     text,
+  updated_at  timestamptz not null default now(),
+  primary key (release_id, environment)
+);
+
+alter table public.release_deployments enable row level security;
+
+drop policy if exists release_deployments_service on public.release_deployments;
+create policy release_deployments_service on public.release_deployments
+  for all to service_role using (true) with check (true);
