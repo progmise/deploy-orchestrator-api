@@ -37,6 +37,36 @@ const decorate = (row, ghRelease) => ({
   gh_release_url: ghRelease?.html_url || null,
 });
 
+// Options for the "Nueva release" form: every deploy-manifest GitHub
+// Release (drafts first, then published — like Gluon's "Versión OAM" list)
+// plus the deployment trails derivable from the manifest's environments.
+export const releaseOptions = ({ repoHost, manifestRepo }) =>
+  async () => {
+    const [ghReleases, file] = await Promise.all([
+      repoHost.api(`/repos/${manifestRepo}/releases?per_page=50`)
+        .catch(() => []),
+      repoHost.api(`/repos/${manifestRepo}/contents/manifest.yml?ref=main`)
+        .catch(() => null),
+    ]);
+    const versions = ghReleases
+      .filter((r) => SEMVER.test(r.tag_name.replace(/^v/, '')))
+      .sort((a, b) => Number(a.draft) - Number(b.draft)
+        || b.tag_name.localeCompare(a.tag_name, undefined, { numeric: true }))
+      .map((r) => ({
+        version: r.tag_name.replace(/^v/, ''), draft: r.draft,
+        name: r.name || r.tag_name,
+      }));
+    const envs = file
+      ? envNamesOf(Buffer.from(file.content, 'base64').toString('utf8'))
+      : [];
+    return {
+      versions,
+      trails: envs.length
+        ? [{ name: `${envs.join('-')}-trails`, environments: envs }]
+        : [],
+    };
+  };
+
 export const listReleases = ({ releases, repoHost, manifestRepo }) =>
   async () => {
     const [rows, ghReleases] = await Promise.all([
@@ -50,16 +80,24 @@ export const listReleases = ({ releases, repoHost, manifestRepo }) =>
   };
 
 export const createRelease = ({ releases }) =>
-  async ({ version, description, planned_date, createdBy }) => {
+  async ({ version, description, planned_date, trail, deploy_start,
+    deploy_end, createdBy }) => {
     const v = String(version || '').trim();
     if (!SEMVER.test(v)) return { status: 400, error: 'version must be semver (x.y.z)' };
     if (!String(description || '').trim())
       return { status: 400, error: 'description required' };
     if (planned_date && Number.isNaN(Date.parse(planned_date)))
       return { status: 400, error: 'planned_date must be a date (YYYY-MM-DD)' };
+    for (const [key, ts] of [['deploy_start', deploy_start], ['deploy_end', deploy_end]])
+      if (ts && Number.isNaN(Date.parse(ts)))
+        return { status: 400, error: `${key} must be a datetime` };
+    if (deploy_start && deploy_end && Date.parse(deploy_end) <= Date.parse(deploy_start))
+      return { status: 400, error: 'deploy_end must be after deploy_start' };
     const release = await releases.create({
       version: v, description: description.trim(),
       planned_date: planned_date || null, created_by: createdBy || null,
+      trail: trail || null,
+      deploy_start: deploy_start || null, deploy_end: deploy_end || null,
     });
     return { status: 201, release };
   };
@@ -126,6 +164,12 @@ export const deployRelease = ({ releases, repoHost, manifestRepo }) =>
     const gh = await manifestRelease(repoHost, manifestRepo, row.version);
     if (!gh || gh.draft)
       return { status: 409, error: `release v${row.version} is not published` };
+    // Deployment window — outside it no environment can be deployed,
+    // whatever state the release is in.
+    if (row.deploy_start && Date.now() < Date.parse(row.deploy_start))
+      return { status: 409, error: `deployment window opens at ${row.deploy_start}` };
+    if (row.deploy_end && Date.now() > Date.parse(row.deploy_end))
+      return { status: 409, error: `deployment window closed at ${row.deploy_end}` };
 
     await repoHost.api(
       `/repos/${manifestRepo}/actions/workflows/deploy.yml/dispatches`,

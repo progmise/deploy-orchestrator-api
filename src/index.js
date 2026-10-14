@@ -16,7 +16,8 @@ import { listTemplates } from './application/usecases/listTemplates.js';
 import { provisionComponent, createComponent }
   from './application/usecases/provisionComponent.js';
 import { createMember } from './application/usecases/members.js';
-import { listReleases, createRelease, getRelease, publishRelease, deployRelease }
+import { listReleases, createRelease, getRelease, publishRelease, deployRelease,
+  releaseOptions }
   from './application/usecases/releases.js';
 import { createApp } from './app.js';
 
@@ -46,6 +47,7 @@ const usecases = {
   listMembers: members.list,
   createMember: createMember({ members, repoHost }),
   listReleases: listReleases({ releases, repoHost, manifestRepo: env.manifestRepo }),
+  releaseOptions: releaseOptions({ repoHost, manifestRepo: env.manifestRepo }),
   createRelease: createRelease({ releases }),
   getRelease: getRelease({ releases, repoHost, manifestRepo: env.manifestRepo }),
   publishRelease: publishRelease({ releases, repoHost, manifestRepo: env.manifestRepo }),

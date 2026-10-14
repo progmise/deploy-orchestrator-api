@@ -138,9 +138,17 @@ create table if not exists public.releases (
   version      text not null,          -- manifest release version, e.g. 1.6.0
   description  text not null,
   planned_date date,
+  trail        text,                   -- deploy route, e.g. pre-pro-trails
+  deploy_start timestamptz,            -- window opens: no env deploys before
+  deploy_end   timestamptz,            -- window closes: no env deploys after
   created_at   timestamptz not null default now(),
   created_by   text
 );
+
+alter table public.releases
+  add column if not exists trail        text,
+  add column if not exists deploy_start timestamptz,
+  add column if not exists deploy_end   timestamptz;
 
 alter table public.releases enable row level security;
 

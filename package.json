@@ -6,6 +6,7 @@
   "scripts": {
     "build": "node --check src/index.js",
     "lint": "oxlint",
+    "dev": "node --env-file=.env src/index.js",
     "start": "node src/index.js"
   },
   "dependencies": {

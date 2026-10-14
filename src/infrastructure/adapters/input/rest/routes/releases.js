@@ -24,11 +24,23 @@ export const releasesRouter = ({ usecases, catalogReady }) => {
       const session = await auth(req, res);
       if (!session) return;
       if (guard(req, res)) return;
-      const { version, description, planned_date } = req.body || {};
+      const { version, description, planned_date, trail, deploy_start,
+        deploy_end } = req.body || {};
       const result = await usecases.createRelease({
-        version, description, planned_date, createdBy: session.user.login,
+        version, description, planned_date, trail, deploy_start,
+        deploy_end, createdBy: session.user.login,
       });
       res.status(result.status).json(result.release ?? { error: result.error });
+    })
+
+    // Before /:number so "options" isn't parsed as a release number.
+    .get('/api/releases/options', async (req, res) => {
+      if (!await auth(req, res)) return;
+      try {
+        res.json(await usecases.releaseOptions());
+      } catch (e) {
+        res.status(502).json({ error: String(e.message || e) });
+      }
     })
 
     .get('/api/releases/:number', async (req, res) => {
