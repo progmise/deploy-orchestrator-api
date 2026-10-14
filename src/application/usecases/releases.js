@@ -50,7 +50,7 @@ export const releaseOptions = ({ repoHost, manifestRepo }) =>
     ]);
     const versions = ghReleases
       .filter((r) => SEMVER.test(r.tag_name.replace(/^v/, '')))
-      .sort((a, b) => Number(a.draft) - Number(b.draft)
+      .sort((a, b) => Number(b.draft) - Number(a.draft)
         || b.tag_name.localeCompare(a.tag_name, undefined, { numeric: true }))
       .map((r) => ({
         version: r.tag_name.replace(/^v/, ''), draft: r.draft,
