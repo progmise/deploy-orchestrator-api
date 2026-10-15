@@ -56,10 +56,16 @@ db/schema.sql                 templates + components + platform_vars + members +
   `vault.secrets`, read via the platformConfigStore adapter; process.env is
   only a fallback) — never exposed to the frontend.
 - `templates.fields` (jsonb) declares the wizard's "Personalización" step —
-  `select`/`fixed` fields; answers land in `components.config` (resolved
-  server-side via domain `resolveConfig`). `components.branch_strategy`
+  `select`/`fixed`/`component` fields; answers land in `components.config`
+  (resolved server-side via domain `resolveConfig`). `component` fields take
+  an existing component name (options resolved dynamically by the wizard —
+  e.g. `configures` on ConfigMap templates). `components.branch_strategy`
   (`gitflow`/`trunk`) picks which branches the provisioner creates and
   protects: gitflow → main + development (dev default); trunk → main only.
+- Template kinds: `app` (deployable — infra block + component entry in the
+  manifest), `lib` (publishable — no manifest), `cm` (ConfigMap — registers
+  as `type: configmap`, binds to the `config.configures` app's infra ids,
+  and adds itself to that app's `needs:`).
 
 - The SPA (`deploy-orchestrator`) proxies `/api/*` here — requests arrive
   same-origin, so there is **no CORS** and the session cookie stays

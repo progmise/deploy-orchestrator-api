@@ -50,7 +50,10 @@ pending → repo_created → secrets_written → vars_written
    (`ensure-vercel-project.sh`),
 3. opens a PR on `deploy-manifest` adding `components[]` + the
    `environments[].infrastructures[]` vercel entry (`lib` templates skip it —
-   they publish to Central, not to a deploy target).
+   they publish to Central, not to a deploy target). `cm` (ConfigMap)
+   templates register differently: no new infra — the component is added
+   with `type: configmap`, bound to the `config.configures` app's infra
+   ids, and the app's `needs:` gains the CM so its env vars deploy first.
 
 Seed the store in the Supabase SQL editor:
 

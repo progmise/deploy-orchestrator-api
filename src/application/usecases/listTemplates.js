@@ -8,7 +8,9 @@ export const listTemplates = ({ templates }) =>
 
 const TEMPLATE_NAME_RE = /^[a-z0-9][a-z0-9-]{1,60}[a-z0-9]$/;
 const FIELD_KEY_RE = /^[a-z][a-z0-9_]{0,30}$/;
-const FIELD_TYPES = ['select', 'fixed'];
+// 'component' selects another catalog component by name — options are
+// resolved dynamically at wizard time (e.g. `configures` on CM templates).
+const FIELD_TYPES = ['select', 'fixed', 'component'];
 
 // Registers a provisioning template. Two repo modes:
 //   existing — `repo` must exist; is_template gets flipped if needed
@@ -26,7 +28,7 @@ export const createTemplate = ({ templates, repoHost, store }) =>
     if (!/^[\w.-]+\/[\w.-]+$/.test(r))
       return { status: 400, error: 'repo must be owner/name (e.g. progmise/node-express-api-template)' };
     if (!specFor(kind))
-      return { status: 400, error: `kind must be one of app|lib` };
+      return { status: 400, error: `kind must be one of app|lib|cm` };
     if (await templates.get(n))
       return { status: 409, error: `template '${n}' already exists` };
 
@@ -35,7 +37,7 @@ export const createTemplate = ({ templates, repoHost, store }) =>
       if (!FIELD_KEY_RE.test(f?.key || '') || !String(f?.label || '').trim())
         return { status: 400, error: 'each field needs a snake_case key and a label' };
       if (!FIELD_TYPES.includes(f.type))
-        return { status: 400, error: `field '${f.key}' type must be select|fixed` };
+        return { status: 400, error: `field '${f.key}' type must be select|fixed|component` };
       if (f.type === 'fixed' && f.value === undefined)
         return { status: 400, error: `field '${f.key}' (fixed) needs a value` };
       if (f.type === 'select') {

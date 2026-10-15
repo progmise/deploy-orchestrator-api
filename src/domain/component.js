@@ -21,6 +21,10 @@ export const resolveConfig = (fields = [], answers = {}) => {
   const config = {};
   for (const f of fields) {
     if (f.type === 'fixed') { config[f.key] = f.value; continue; }
+    if (f.type === 'component') {           // free value — a catalog component name
+      config[f.key] = String(answers[f.key] ?? f.default ?? '');
+      continue;
+    }
     const v = answers[f.key];
     config[f.key] = (f.options || []).some((o) => o.value === v) ? v : f.default;
   }
