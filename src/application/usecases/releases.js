@@ -79,13 +79,24 @@ export const listReleases = ({ releases, repoHost, manifestRepo }) =>
     return rows.map((r) => decorate(r, byTag[`v${r.version}`]));
   };
 
+const REASONS = ['New Application', 'New Version/Evolutive', 'Incident', 'Problem'];
+const PRIORITIES = ['1 - Critical', '2 - High', '3 - Moderate', '4 - Low', '5 - Planning'];
+const RISKS = ['Extreme', 'High', 'Medium', 'Low', 'Minimal'];
+
 export const createRelease = ({ releases }) =>
   async ({ version, description, planned_date, trail, deploy_start,
-    deploy_end, createdBy }) => {
+    deploy_end, reason, product_owner, requested_by, priority, risk,
+    details, createdBy }) => {
     const v = String(version || '').trim();
     if (!SEMVER.test(v)) return { status: 400, error: 'version must be semver (x.y.z)' };
     if (!String(description || '').trim())
       return { status: 400, error: 'description required' };
+    if (reason && !REASONS.includes(reason))
+      return { status: 400, error: `reason must be one of ${REASONS.join('/')}` };
+    if (priority && !PRIORITIES.includes(priority))
+      return { status: 400, error: `priority must be one of ${PRIORITIES.join('/')}` };
+    if (risk && !RISKS.includes(risk))
+      return { status: 400, error: `risk must be one of ${RISKS.join('/')}` };
     if (planned_date && Number.isNaN(Date.parse(planned_date)))
       return { status: 400, error: 'planned_date must be a date (YYYY-MM-DD)' };
     for (const [key, ts] of [['deploy_start', deploy_start], ['deploy_end', deploy_end]])
@@ -98,6 +109,9 @@ export const createRelease = ({ releases }) =>
       planned_date: planned_date || null, created_by: createdBy || null,
       trail: trail || null,
       deploy_start: deploy_start || null, deploy_end: deploy_end || null,
+      reason: reason || null, product_owner: product_owner || null,
+      requested_by: requested_by || null, priority: priority || null,
+      risk: risk || null, details: details || null,
     });
     return { status: 201, release };
   };
@@ -156,7 +170,7 @@ export const publishRelease = ({ releases, repoHost, manifestRepo }) =>
 // what unlocks `pro` in orch-deploy — production deploys only exist when
 // the dashboard mints them.
 export const deployRelease = ({ releases, repoHost, manifestRepo }) =>
-  async (number, environment, actor) => {
+  async (number, environment, _actor) => {
     const row = await releases.get(number);
     if (!row) return { status: 404, error: 'release not found' };
     const env = String(environment || '').trim();

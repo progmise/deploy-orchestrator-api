@@ -141,6 +141,12 @@ create table if not exists public.releases (
   trail        text,                   -- deploy route, e.g. pre-pro-trails
   deploy_start timestamptz,            -- window opens: no env deploys before
   deploy_end   timestamptz,            -- window closes: no env deploys after
+  reason       text,                   -- New Application | New Version/Evolutive | ...
+  product_owner text,                  -- technical-lead member approving PRs
+  requested_by text,                   -- email of the member creating it
+  priority     text,                   -- 1 - Critical … 5 - Planning
+  risk         text,                   -- Extreme | High | Medium | Low | Minimal
+  details      text,                   -- long description (the "Descripción" field)
   created_at   timestamptz not null default now(),
   created_by   text
 );
@@ -148,7 +154,13 @@ create table if not exists public.releases (
 alter table public.releases
   add column if not exists trail        text,
   add column if not exists deploy_start timestamptz,
-  add column if not exists deploy_end   timestamptz;
+  add column if not exists deploy_end   timestamptz,
+  add column if not exists reason       text,
+  add column if not exists product_owner text,
+  add column if not exists requested_by text,
+  add column if not exists priority     text,
+  add column if not exists risk         text,
+  add column if not exists details      text;
 
 alter table public.releases enable row level security;
 
