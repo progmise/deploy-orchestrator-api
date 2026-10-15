@@ -27,12 +27,14 @@ export const releasesRouter = ({ usecases, catalogReady }) => {
       const { version, description, planned_date, trail, deploy_start,
         deploy_end, reason, product_owner, requested_by, priority, risk,
         details, impact, platform, justification, deploy_plan, risk_analysis,
-        test_plan, recovery_plan } = req.body || {};
+        test_plan, recovery_plan, unavailability, on_site_followup, db_change,
+        infra_change } = req.body || {};
       const result = await usecases.createRelease({
         version, description, planned_date, trail, deploy_start,
         deploy_end, reason, product_owner, requested_by, priority, risk,
         details, impact, platform, justification, deploy_plan, risk_analysis,
-        test_plan, recovery_plan, createdBy: session.user.login,
+        test_plan, recovery_plan, unavailability, on_site_followup, db_change,
+        infra_change, createdBy: session.user.login,
       });
       res.status(result.status).json(result.release ?? { error: result.error });
     })

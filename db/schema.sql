@@ -154,6 +154,10 @@ create table if not exists public.releases (
   risk_analysis text,                  -- análisis de riesgos e impactos
   test_plan    text,                   -- plan de pruebas
   recovery_plan text,                  -- plan de recuperación (enum)
+  unavailability text,                 -- Yes | No — indisponibilidad
+  on_site_followup text,               -- Yes | No — seguimiento presencial
+  db_change    text,                   -- Yes | No — cambio/inclusión de base de datos
+  infra_change text,                   -- Yes | No — cambio/inclusión de infraestructuras
   created_at   timestamptz not null default now(),
   created_by   text
 );
@@ -174,7 +178,11 @@ alter table public.releases
   add column if not exists deploy_plan  text,
   add column if not exists risk_analysis text,
   add column if not exists test_plan    text,
-  add column if not exists recovery_plan text;
+  add column if not exists recovery_plan text,
+  add column if not exists unavailability  text,
+  add column if not exists on_site_followup text,
+  add column if not exists db_change       text,
+  add column if not exists infra_change    text;
 
 alter table public.releases enable row level security;
 
