@@ -17,7 +17,7 @@ create table if not exists public.templates (
   repo         text not null unique,
   -- 'app' = deployable component (manifest registration); 'lib' = library
   -- (Central publishing, no manifest step)
-  kind         text not null check (kind in ('app', 'lib')),
+  kind         text not null check (kind in ('app', 'lib', 'cm')),
   -- Friendly label for the wizard/list (e.g. "Node API (Express)");
   -- `name` stays the technical identifier.
   display_name text not null default '',
