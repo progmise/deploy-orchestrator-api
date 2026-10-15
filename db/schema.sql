@@ -147,6 +147,12 @@ create table if not exists public.releases (
   priority     text,                   -- 1 - Critical … 5 - Planning
   risk         text,                   -- Extreme | High | Medium | Low | Minimal
   details      text,                   -- long description (the "Descripción" field)
+  impact       text,                   -- 1 - High | 2 - Medium | 3 - Low
+  justification text,                  -- justificación
+  deploy_plan  text,                   -- plan de implantación
+  risk_analysis text,                  -- análisis de riesgos e impactos
+  test_plan    text,                   -- plan de pruebas
+  recovery_plan text,                  -- plan de recuperación (enum)
   created_at   timestamptz not null default now(),
   created_by   text
 );
@@ -160,7 +166,13 @@ alter table public.releases
   add column if not exists requested_by text,
   add column if not exists priority     text,
   add column if not exists risk         text,
-  add column if not exists details      text;
+  add column if not exists details      text,
+  add column if not exists impact       text,
+  add column if not exists justification text,
+  add column if not exists deploy_plan  text,
+  add column if not exists risk_analysis text,
+  add column if not exists test_plan    text,
+  add column if not exists recovery_plan text;
 
 alter table public.releases enable row level security;
 

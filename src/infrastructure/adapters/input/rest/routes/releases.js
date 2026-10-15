@@ -26,11 +26,13 @@ export const releasesRouter = ({ usecases, catalogReady }) => {
       if (guard(req, res)) return;
       const { version, description, planned_date, trail, deploy_start,
         deploy_end, reason, product_owner, requested_by, priority, risk,
-        details } = req.body || {};
+        details, impact, justification, deploy_plan, risk_analysis,
+        test_plan, recovery_plan } = req.body || {};
       const result = await usecases.createRelease({
         version, description, planned_date, trail, deploy_start,
         deploy_end, reason, product_owner, requested_by, priority, risk,
-        details, createdBy: session.user.login,
+        details, impact, justification, deploy_plan, risk_analysis,
+        test_plan, recovery_plan, createdBy: session.user.login,
       });
       res.status(result.status).json(result.release ?? { error: result.error });
     })
