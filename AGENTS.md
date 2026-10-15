@@ -17,19 +17,27 @@ src/
   application/
     ports/output/             contracts as JSDoc typedefs (IdentityProvider,
                               ComponentCatalog, CredentialStore, RepoHost)
-    usecases/                 resolveSession, exchangeOAuthCode, listTemplates,
-                              provisionComponent (state machine), createComponent,
+    usecases/                 resolveSession, exchangeOAuthCode,
+                              listTemplates (+createTemplate — validates the
+                              repo, flips is_template, can /generate from a
+                              base template repo),
+                              provisionComponent (state machine) +
+                              createComponent,
                               members, releases (RLSE registry: list/create/
                               detail/publish/deploy — publish flips the manifest
                               draft via repoHost; deploy dispatches deploy.yml
                               with the RLSE number, which is what unlocks `pro`)
   infrastructure/
-    adapters/input/rest/      routers + session middleware — HTTP <-> use cases
+    adapters/input/rest/      routers (auth, components, members, releases,
+                              proxy, system) + session middleware — HTTP <->
+                              use cases
     adapters/output/          githubIdentity (OAuth), githubAdmin (provisioning
                               token), supabase/ (client, componentCatalog,
-                              templateCatalog, platformConfigStore)
-db/schema.sql                 templates + components + platform_vars tables,
-                              Vault view — apply in the Supabase SQL editor.
+                              templateCatalog, memberCatalog, releaseCatalog,
+                              platformConfigStore)
+db/schema.sql                 templates + components + platform_vars + members +
+                              releases + release_deployments tables, Vault view
+                              — apply in the Supabase SQL editor.
 ```
 
 - Dependencies point inward: routers never touch `fetch`/env directly; use
@@ -37,10 +45,13 @@ db/schema.sql                 templates + components + platform_vars tables,
 - The Vercel project is NOT created at provisioning time —
   `VERCEL_PROJECT_ID` ships empty and the deploy workflow provisions it
   lazily.
-- Provisioning spec lives in `SPECS` (provisionComponent.js): which repo
-  secrets/vars each template **kind** (`app`/`lib`) gets. The kind comes from
-  the `templates` catalog row — not from naming conventions — and
-  `components.template` is a FK to it. Master
+- Provisioning spec lives on the template row: `templates.spec` jsonb
+  (`{manifest, secrets, vars}`) is authoritative — `SPECS` in
+  provisionComponent.js is only the legacy fallback for rows without a spec.
+  Spec credential names are validated against the credential store at
+  registration (`GET /api/platform/keys` exposes the names only).
+  The kind comes from the `templates` catalog row — not from naming
+  conventions — and `components.template` is a FK to it. Master
   values live in the Supabase credential store (`platform_vars` +
   `vault.secrets`, read via the platformConfigStore adapter; process.env is
   only a fallback) — never exposed to the frontend.
@@ -58,7 +69,9 @@ db/schema.sql                 templates + components + platform_vars tables,
   the post-login/logout redirect.
 - `ALLOWED_USERS` gates the callback AND every protected endpoint
   (`authedUser` re-fetches `/user` per request — revoking is immediate).
-- `/api/manifest` and `/api/gh/*` require a session; `/api/health` is open.
+- Everything under `/api/*` requires a session except `/api/health` and
+  `/api/auth/*`; `/api/gh/*` is the generic GitHub read proxy, `/api/manifest`
+  serves the rendered manifest.
 
 ## Conventions
 
