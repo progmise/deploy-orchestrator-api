@@ -30,6 +30,12 @@ create table if not exists public.templates (
   -- branches the provisioner creates (gitflow: main+development;
   -- trunk: main only).
   fields       jsonb not null default '[]'::jsonb,
+  -- Provisioning spec — what the provisioner materializes into each repo
+  -- generated from this template (self-describing; supersedes the hardcoded
+  -- kind-based SPECS):
+  --   {manifest: bool, secrets: [platform_secrets names],
+  --    vars: [platform_vars keys]}
+  spec         jsonb not null default '{}'::jsonb,
   created_at   timestamptz not null default now()
 );
 

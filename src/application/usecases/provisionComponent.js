@@ -46,11 +46,13 @@ export const provisionComponent = ({ catalog, store, repoHost, templates }) => {
   const OWNER = repoHost.owner;
   const MANIFEST_REPO = repoHost.manifestRepo;
 
-  // Resolves the template's provisioning spec from the catalog row —
-  // the registered kind is authoritative over any naming convention.
+  // Resolves the template's provisioning spec from the catalog row — the
+  // row's own spec jsonb is authoritative; the hardcoded kind-based SPECS
+  // only serve as fallback for legacy rows without one.
   async function specOf(comp) {
     const tpl = await templates.get(comp.template);
-    const spec = tpl && specFor(tpl.kind);
+    const spec = tpl && (Array.isArray(tpl.spec?.secrets)
+      ? { key: tpl.kind, ...tpl.spec } : specFor(tpl.kind));
     if (!spec) throw new Error(`unknown template '${comp.template}'`);
     return spec;
   }

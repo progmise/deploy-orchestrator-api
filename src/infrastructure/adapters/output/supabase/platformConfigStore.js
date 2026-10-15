@@ -15,4 +15,14 @@ export const platformConfigStore = ({ client }) => ({
     for (const v of vars) cfg[v.key] = v.value;
     return cfg;
   },
+
+  // Key names only — used to validate template provisioning specs without
+  // ever exposing values.
+  async keys() {
+    const [vars, secrets] = await Promise.all([
+      client.rest('platform_vars?select=key'),
+      client.rest('platform_secrets?select=name'),
+    ]);
+    return { vars: vars.map((v) => v.key), secrets: secrets.map((s) => s.name) };
+  },
 });
