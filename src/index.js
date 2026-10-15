@@ -12,7 +12,7 @@ import { templateCatalog } from './infrastructure/adapters/output/supabase/templ
 import { platformConfigStore } from './infrastructure/adapters/output/supabase/platformConfigStore.js';
 import { resolveSession } from './application/usecases/resolveSession.js';
 import { exchangeOAuthCode } from './application/usecases/exchangeOAuthCode.js';
-import { listTemplates } from './application/usecases/listTemplates.js';
+import { listTemplates, createTemplate } from './application/usecases/listTemplates.js';
 import { provisionComponent, createComponent }
   from './application/usecases/provisionComponent.js';
 import { createMember } from './application/usecases/members.js';
@@ -44,6 +44,7 @@ const usecases = {
   resolveSession: resolveSession({ provider, allowedUsers: env.allowedUsers, members }),
   exchangeOAuthCode: exchangeOAuthCode({ provider, allowedUsers: env.allowedUsers, members }),
   listTemplates: listTemplates({ templates }),
+  createTemplate: createTemplate({ templates, repoHost }),
   listMembers: members.list,
   createMember: createMember({ members, repoHost }),
   listReleases: listReleases({ releases, repoHost, manifestRepo: env.manifestRepo }),

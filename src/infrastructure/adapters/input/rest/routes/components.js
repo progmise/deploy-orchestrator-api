@@ -32,6 +32,17 @@ export const componentsRouter = ({ usecases, catalogReady, provisioningEnabled }
       }
     })
 
+    .post('/api/templates', async (req, res) => {
+      if (!await auth(req, res)) return;
+      if (!catalogOk(res)) return;
+      if (!provisioningOk(res)) return;
+      const { name, repo, kind, display_name, description, fields } = req.body || {};
+      const result = await usecases.createTemplate({
+        name, repo, kind, display_name, description, fields,
+      });
+      res.status(result.status).json(result.template ?? { error: result.error });
+    })
+
     .get('/api/components', async (req, res) => {
       if (!await auth(req, res)) return;
       if (!catalogOk(res)) return;

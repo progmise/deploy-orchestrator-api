@@ -9,4 +9,11 @@ export const templateCatalog = ({ client }) => ({
     const rows = await client.rest(`templates?name=eq.${encodeURIComponent(name)}&select=*`);
     return rows[0] || null;
   },
+
+  create: (row) =>
+    client.rest('templates', {
+      method: 'POST',
+      body: row,
+      prefer: 'return=representation',
+    }).then((rows) => rows[0]),
 });
