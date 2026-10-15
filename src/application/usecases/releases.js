@@ -142,6 +142,19 @@ export const createRelease = ({ releases }) =>
     return { status: 201, release };
   };
 
+// Flattened per-environment deployments for the Despliegues view — the
+// dashboard joins them to GitHub runs by run_id.
+export const listDeployments = ({ releases }) =>
+  async () =>
+    (await releases.allDeployments()).map((d) => ({
+      run_id: d.run_id,
+      release_no: d.release ? releaseNo(d.release.number) : null,
+      version: d.release?.version ?? null,
+      environment: d.environment,
+      status: d.status,
+      run_url: d.run_url,
+    }));
+
 // Non-final statuses get re-polled against the run on every detail read.
 const FINAL = new Set(['success', 'failure', 'cancelled']);
 

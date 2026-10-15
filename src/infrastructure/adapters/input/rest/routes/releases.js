@@ -20,6 +20,16 @@ export const releasesRouter = ({ usecases, catalogReady }) => {
       }
     })
 
+    .get('/api/deployments', async (req, res) => {
+      if (!await auth(req, res)) return;
+      if (guard(req, res)) return;
+      try {
+        res.json(await usecases.listDeployments());
+      } catch (e) {
+        res.status(502).json({ error: String(e.message || e) });
+      }
+    })
+
     .post('/api/releases', async (req, res) => {
       const session = await auth(req, res);
       if (!session) return;

@@ -20,6 +20,11 @@ export const releaseCatalog = ({ client }) => ({
     client.rest(
       `release_deployments?release_id=eq.${releaseId}&select=*&order=environment`),
 
+  allDeployments: () =>
+    client.rest(
+      'release_deployments?select=*,release:releases(number,version)'
+      + '&order=updated_at.desc'),
+
   upsertDeployment: (row) =>
     client.rest('release_deployments', {
       method: 'POST',
