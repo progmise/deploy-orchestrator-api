@@ -120,7 +120,7 @@ create table if not exists public.members (
   created_at      timestamptz not null default now(),
   created_by      text,
   constraint members_roles_check
-    check (roles <@ array['developer','technical-lead']::text[])
+    check (roles <@ array['developer','technical-lead','product-owner']::text[])
 );
 
 alter table public.members enable row level security;

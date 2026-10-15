@@ -1,7 +1,7 @@
 // Use cases: team registry. createMember validates the payload, verifies the
 // GitHub account exists (repoHost), and registers the member — registration
 // is what grants login access (see resolveSession).
-export const MEMBER_ROLES = ['developer', 'technical-lead'];
+export const MEMBER_ROLES = ['developer', 'technical-lead', 'product-owner'];
 
 const GH_USER_RE = /^[a-zA-Z0-9](?:-?[a-zA-Z0-9]){0,38}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
