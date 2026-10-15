@@ -148,6 +148,7 @@ create table if not exists public.releases (
   risk         text,                   -- Extreme | High | Medium | Low | Minimal
   details      text,                   -- long description (the "Descripción" field)
   impact       text,                   -- 1 - High | 2 - Medium | 3 - Low
+  platform     text,                   -- Vercel | Render
   justification text,                  -- justificación
   deploy_plan  text,                   -- plan de implantación
   risk_analysis text,                  -- análisis de riesgos e impactos
@@ -168,6 +169,7 @@ alter table public.releases
   add column if not exists risk         text,
   add column if not exists details      text,
   add column if not exists impact       text,
+  add column if not exists platform     text,
   add column if not exists justification text,
   add column if not exists deploy_plan  text,
   add column if not exists risk_analysis text,

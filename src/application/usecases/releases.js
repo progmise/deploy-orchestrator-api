@@ -83,6 +83,7 @@ const REASONS = ['New Application', 'New Version/Evolutive', 'Incident', 'Proble
 const PRIORITIES = ['1 - Critical', '2 - High', '3 - Moderate', '4 - Low', '5 - Planning'];
 const RISKS = ['Extreme', 'High', 'Medium', 'Low', 'Minimal'];
 const IMPACTS = ['1 - High', '2 - Medium', '3 - Low'];
+const PLATFORMS = ['Vercel', 'Render'];
 const RECOVERY_PLANS = [
   'N/A - First version of the product/service, there is no previous version to go back to, if it has an impact on the environment we will correct it and generate a new version',
   'N/A - Service unavailable to the user, in case of failure it will have no impact on the environment',
@@ -92,8 +93,8 @@ const RECOVERY_PLANS = [
 export const createRelease = ({ releases }) =>
   async ({ version, description, planned_date, trail, deploy_start,
     deploy_end, reason, product_owner, requested_by, priority, risk,
-    details, impact, justification, deploy_plan, risk_analysis, test_plan,
-    recovery_plan, createdBy }) => {
+    details, impact, platform, justification, deploy_plan, risk_analysis,
+    test_plan, recovery_plan, createdBy }) => {
     const v = String(version || '').trim();
     if (!SEMVER.test(v)) return { status: 400, error: 'version must be semver (x.y.z)' };
     if (!String(description || '').trim())
@@ -106,6 +107,8 @@ export const createRelease = ({ releases }) =>
       return { status: 400, error: `risk must be one of ${RISKS.join('/')}` };
     if (impact && !IMPACTS.includes(impact))
       return { status: 400, error: `impact must be one of ${IMPACTS.join('/')}` };
+    if (platform && !PLATFORMS.includes(platform))
+      return { status: 400, error: `platform must be one of ${PLATFORMS.join('/')}` };
     if (recovery_plan && !RECOVERY_PLANS.includes(recovery_plan))
       return { status: 400, error: 'recovery_plan must be a known option' };
     if (planned_date && Number.isNaN(Date.parse(planned_date)))
@@ -123,7 +126,8 @@ export const createRelease = ({ releases }) =>
       reason: reason || null, product_owner: product_owner || null,
       requested_by: requested_by || null, priority: priority || null,
       risk: risk || null, details: details || null,
-      impact: impact || null, justification: justification || null,
+      impact: impact || null, platform: platform || null,
+      justification: justification || null,
       deploy_plan: deploy_plan || null, risk_analysis: risk_analysis || null,
       test_plan: test_plan || null, recovery_plan: recovery_plan || null,
     });
