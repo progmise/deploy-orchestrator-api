@@ -17,7 +17,8 @@ create table if not exists public.templates (
   repo         text not null unique,
   -- 'app' = deployable component (manifest registration); 'lib' = library
   -- (Central publishing, no manifest step)
-  kind         text not null check (kind in ('app', 'lib', 'cm')),
+  -- 'secrets' = secrets component (type: secrets — Vault-backed env vars)
+  kind         text not null check (kind in ('app', 'lib', 'cm', 'secrets')),
   -- Friendly label for the wizard/list (e.g. "Node API (Express)");
   -- `name` stays the technical identifier.
   display_name text not null default '',
@@ -114,6 +115,46 @@ create or replace view public.platform_secrets as
 -- Views run with owner rights — keep them out of reach of anon/auth roles.
 revoke all on public.platform_secrets from anon, authenticated;
 revoke all on public.platform_vars from anon, authenticated;
+
+-- Write path into the Vault — PostgREST does not expose vault.*, so a
+-- security-definer wrapper upserts vault.secrets by name (service_role
+-- only; the Seguridad view writes application secrets as `<NAME>__<ENV>`).
+create or replace function public.put_platform_secret(p_name text, p_value text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, vault
+as $$
+declare
+  v_id uuid;
+begin
+  select id into v_id from vault.secrets where name = p_name;
+  if v_id is null then
+    v_id := vault.create_secret(p_value, p_name);
+  else
+    perform vault.update_secret(v_id, p_value);
+  end if;
+  return v_id;
+end;
+$$;
+
+revoke all on function public.put_platform_secret(text, text) from anon, authenticated;
+
+-- Secret write audit — actor + logical name + environment, never values.
+create table if not exists public.secret_events (
+  id          bigint generated always as identity primary key,
+  actor       text not null,          -- GitHub login
+  name        text not null,          -- vault key (NAME__ENV)
+  environment text not null,          -- cert | pre | pro
+  action      text not null,          -- upsert
+  created_at  timestamptz not null default now()
+);
+
+alter table public.secret_events enable row level security;
+
+drop policy if exists secret_events_service on public.secret_events;
+create policy secret_events_service on public.secret_events
+  for all to service_role using (true) with check (true);
 
 -- Team registry — gates login (alongside ALLOWED_USERS) and drives roles:
 --   developer       repo access

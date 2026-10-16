@@ -26,17 +26,24 @@ src/
                               members, releases (RLSE registry: list/create/
                               detail/publish/deploy — publish flips the manifest
                               draft via repoHost; deploy dispatches deploy.yml
-                              with the RLSE number, which is what unlocks `pro`)
+                              with the RLSE number, which is what unlocks `pro`),
+                              secrets (list declared names per env, write-only
+                              upsert into the credential store — role-gated:
+                              developers write cert/pre, technical-lead +
+                              product-owner also pro; every write is audited to
+                              secret_events, values never leave the server)
   infrastructure/
     adapters/input/rest/      routers (auth, components, members, releases,
-                              proxy, system) + session middleware — HTTP <->
-                              use cases
+                              secrets, proxy, system) + session middleware —
+                              HTTP <-> use cases
     adapters/output/          githubIdentity (OAuth), githubAdmin (provisioning
                               token), supabase/ (client, componentCatalog,
                               templateCatalog, memberCatalog, releaseCatalog,
-                              platformConfigStore)
+                              platformConfigStore — incl. putPlatformSecret via
+                              the put_platform_secret RPC writing vault.secrets)
 db/schema.sql                 templates + components + platform_vars + members +
-                              releases + release_deployments tables, Vault view
+                              releases + release_deployments + secret_events
+                              tables, Vault view + put_platform_secret function
                               — apply in the Supabase SQL editor.
 ```
 
@@ -65,7 +72,13 @@ db/schema.sql                 templates + components + platform_vars + members +
 - Template kinds: `app` (deployable — infra block + component entry in the
   manifest), `lib` (publishable — no manifest), `cm` (ConfigMap — registers
   as `type: configmap`, binds to the `config.configures` app's infra ids,
-  and adds itself to that app's `needs:`).
+  and adds itself to that app's `needs:`), `secrets` (registers as
+  `type: secrets` — same infra-binding/needs mechanics as cm; its repos
+  only declare secret names, values are upserted into `vault.secrets` as
+  `NAME__ENV` via `POST /api/secrets` and deployed by `sec-deploy`).
+- Session resolution attaches the member row (`members` by GitHub login) —
+  `/api/me` returns `secret_envs`, the environments that login may write
+  secrets for; logins without a member row keep broad access (bootstrap).
 
 - The SPA (`deploy-orchestrator`) proxies `/api/*` here — requests arrive
   same-origin, so there is **no CORS** and the session cookie stays

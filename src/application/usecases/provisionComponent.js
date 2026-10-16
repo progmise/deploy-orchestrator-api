@@ -41,7 +41,17 @@ const SPECS = {
     secrets: ['VERCEL_TOKEN'],
     vars: ['VERCEL_ORG_ID'],
   },
+  secrets: {
+    key: 'secrets',
+    manifest: true, // registered as a `type: secrets` component
+    secrets: ['VERCEL_TOKEN', 'SUPABASE_SERVICE_ROLE_KEY'],
+    vars: ['VERCEL_ORG_ID', 'SUPABASE_URL'],
+  },
 };
+
+// Manifest component type written by stepManifest for binding kinds (CM and
+// secrets bind to an existing app's infra instead of getting their own).
+export const BINDING_TYPES = { cm: 'configmap', secrets: 'secrets' };
 
 export const specFor = (kind) => SPECS[kind];
 
@@ -169,15 +179,15 @@ export const provisionComponent = ({ catalog, store, repoHost, templates }) => {
 
   // Insert the infra block (app components only) and the component entry
   // into manifest.yml, bump its version, and open the registration PR.
-  // ConfigMap components (`cm` kind) register differently: no new infra —
-  // they bind to the configured app's infra ids (`config.configures`), carry
-  // `type: configmap`, and the app gains a `needs: [<cm>]` edge so its env
-  // vars land before the app deploys.
+  // Binding kinds (cm → configmap, secrets → secrets) register differently:
+  // no new infra — they bind to the configured app's infra ids
+  // (`config.configures`), carry their manifest `type`, and the app gains a
+  // `needs: [<comp>]` edge so config/secrets land before the app deploys.
   async function stepManifest(comp) {
     const spec = await specOf(comp);
     if (!spec.manifest)
       return { skipped: 'lib template: not a deploy component' };
-    const isCm = spec.key === 'cm';
+    const bindingType = BINDING_TYPES[spec.key];
     const repoName = comp.repo.split('/')[1];
     const file = await gh(`/repos/${MANIFEST_REPO}/contents/manifest.yml?ref=main`);
     let text = Buffer.from(file.content, 'base64').toString('utf8');
@@ -189,10 +199,10 @@ export const provisionComponent = ({ catalog, store, repoHost, templates }) => {
 
     let infraIds = `${comp.name}-pro`;
     let prLine = `- infra \`${comp.name}-pro\` (vercel)`;
-    if (isCm) {
+    if (bindingType) {
       const target = comp.config?.configures;
       if (!target)
-        throw new Error('configmap component needs config.configures — the app it configures');
+        throw new Error(`${bindingType} component needs config.configures — the app it configures`);
       const block = text.match(
         new RegExp(`  - name: ${target}\\n(?:    [^\\n]*\\n?)+`))?.[0];
       if (!block)
@@ -206,7 +216,7 @@ export const provisionComponent = ({ catalog, store, repoHost, templates }) => {
         text = text.replace(block, block.replace(/^    needs: \[[^\]]*\]/m,
           `    needs: [${needs ? `${needs}, ` : ''}${comp.name}]`));
       }
-      prLine = `- configmap for \`${target}\` — binds to ${infraIds}`;
+      prLine = `- ${bindingType} for \`${target}\` — binds to ${infraIds}`;
     } else {
       const infra = [
         `      - id: ${comp.name}-pro`,
@@ -226,7 +236,7 @@ export const provisionComponent = ({ catalog, store, repoHost, templates }) => {
       `  - name: ${comp.name}`,
       `    repo: ${comp.repo}`,
       `    tag: "0.1.0"`,
-      ...(isCm ? [`    type: configmap`] : []),
+      ...(bindingType ? [`    type: ${bindingType}`] : []),
       `    needs: []`,
       `    infra: [${infraIds}]`,
       ``,

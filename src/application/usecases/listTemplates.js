@@ -28,7 +28,7 @@ export const createTemplate = ({ templates, repoHost, store }) =>
     if (!/^[\w.-]+\/[\w.-]+$/.test(r))
       return { status: 400, error: 'repo must be owner/name (e.g. progmise/node-express-api-template)' };
     if (!specFor(kind))
-      return { status: 400, error: `kind must be one of app|lib|cm` };
+      return { status: 400, error: `kind must be one of app|lib|cm|secrets` };
     if (await templates.get(n))
       return { status: 409, error: `template '${n}' already exists` };
 

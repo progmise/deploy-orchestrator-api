@@ -9,7 +9,7 @@ Generated from `node-express-api-template`.
 | Endpoint | Notes |
 |---|---|
 | `/api/auth/login` → `/api/auth/callback` | GitHub OAuth — `client_secret` never leaves the server; token goes into an HttpOnly `gh_token` cookie. `redirect_uri` = `FRONTEND_URL/api/auth/callback` (the SPA proxies it here) |
-| `/api/me` | Session user (`401` anon, `403` not in `ALLOWED_USERS`) |
+| `/api/me` | Session user + `secret_envs` (secret-writable envs by role) (`401` anon, `403` not in `ALLOWED_USERS`) |
 | `/api/gh/*` | GitHub API proxy using the caller's own token |
 | `/api/manifest` | `deploy-manifest` `manifest.yml` (session required) |
 | `/api/templates` | Template catalog (Supabase): `GET` list, `POST` register — validates the repo (flips `is_template` or `/generate`s from a base template repo) + the `fields`/`spec` schema |
@@ -18,6 +18,7 @@ Generated from `node-express-api-template`.
 | `/api/components/:name` | Component detail incl. `provision_log` |
 | `/api/components/:name/provision` | `POST` re-runs pending provisioning steps (retry) |
 | `/api/members` | Team registry: `GET` list, `POST` create (roles: developer, technical-lead, product-owner) |
+| `/api/secrets` | Secret store: `GET ?env=` lists declared names + stored-name metadata (never values), `POST {name, env, value}` writes `NAME__ENV` into the credential store — role-gated (developers: cert/pre; technical-lead + product-owner: also pro), writes audited to `secret_events` |
 | `/api/releases*` | RLSE registry: list/options/create/detail, `POST /:n/publish` (publishes the manifest draft), `POST /:n/deploy` (dispatches `deploy.yml` with `release_no`) |
 | `/api/deployments` | `release_deployments` joined to releases (RLSE ↔ GitHub run) |
 | `/api/health` | Liveness |

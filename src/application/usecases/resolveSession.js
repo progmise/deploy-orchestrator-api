@@ -9,8 +9,8 @@ export const resolveSession = ({ provider, allowedUsers, members }) =>
     if (!token) return { error: 'unauthenticated' };
     const user = await provider.getUser(token);
     if (!user) return { error: 'unauthorized' };
-    if (!isAllowed(allowedUsers, user.login)
-        && !(await members?.get(user.login).catch(() => null)))
+    const member = await members?.get(user.login).catch(() => null);
+    if (!isAllowed(allowedUsers, user.login) && !member)
       return { error: 'forbidden' };
-    return { user, token };
+    return { user, token, member };
   };
